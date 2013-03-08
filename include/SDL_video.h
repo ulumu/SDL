@@ -37,6 +37,7 @@
 extern "C" {
 #endif
 
+#define SLOG(fmt, ...) fprintf(stderr, "[SDL-LOG][%s:%d]:"fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__);
 /** @name Transparency definitions
  *  These define alpha as the opacity of a surface
  */

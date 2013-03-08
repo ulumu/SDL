@@ -30,10 +30,36 @@
 
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #include <errno.h> // ::errno
 #include <time.h> // struct tm, clock_gettime
 
 #define PLAYBOOKVID_8Bit_DRIVER_NAME "pb-8bit"
+
+static GLfloat vertices[] = {-1.0,-1.0, 1.0,-1.0, -1.0,1.0, 1.0,1.0};
+static GLfloat texCoords[] = {0.0,1.0, 1.0,1.0, 0.0,0.0, 1.0,0.0};
+
+	const char *vs =
+			"attribute vec2 a_position;\n"
+			"attribute vec2 a_texcoord;\n"
+			"varying vec2 v_texcoord;\n"
+			"void main()\n"
+			"{\n"
+			"    gl_Position = vec4(a_position, 0.0, 1.0);\n"
+			"    v_texcoord = a_texcoord;\n"
+			"}\n";
+
+	const char *fs =
+			"uniform lowp sampler2D u_sampler;\n"
+			"uniform lowp sampler2D u_palette;\n" // TODO: Palette should be 1D.
+			"varying mediump vec2 v_texcoord;\n"
+			"void main()\n"
+			"{\n"
+			"    /*lowp float p = texture2D(u_sampler, v_texcoord).r;\n*/"
+			"    /*gl_FragColor = texture2D(u_palette, vec2(p,0.0));\n*/"
+			"    gl_FragColor = texture2D(u_sampler, v_texcoord);\n"
+			"}\n";
+
 
 static void egl_perror(const char *msg)
 {
@@ -96,31 +122,31 @@ SDL_VideoDevice *PLAYBOOK_8Bit_CreateDevice(int devindex)
 	}
 
 	/* Set the function pointers */
-	device->VideoInit = PLAYBOOK_8Bit_VideoInit;
-	device->ListModes = PLAYBOOK_8Bit_ListModes;
-	device->SetVideoMode = PLAYBOOK_8Bit_SetVideoMode;
+	device->VideoInit        = PLAYBOOK_8Bit_VideoInit;
+	device->ListModes        = PLAYBOOK_8Bit_ListModes;
+	device->SetVideoMode     = PLAYBOOK_8Bit_SetVideoMode;
 	device->CreateYUVOverlay = PLAYBOOK_CreateYUVOverlay;
-	device->SetColors = PLAYBOOK_8Bit_SetColors;
-	device->UpdateRects = PLAYBOOK_8Bit_UpdateRects;
-	device->VideoQuit = PLAYBOOK_8Bit_VideoQuit;
-	device->AllocHWSurface = PLAYBOOK_AllocHWSurface;
-	device->CheckHWBlit = NULL;
-	device->FillHWRect = NULL; //PLAYBOOK_FillHWRect;
-	device->SetHWColorKey = NULL;
-	device->SetHWAlpha = NULL;
-	device->LockHWSurface = PLAYBOOK_LockHWSurface;
-	device->UnlockHWSurface = PLAYBOOK_UnlockHWSurface;
-	device->FlipHWSurface = PLAYBOOK_FlipHWSurface;
-	device->FreeHWSurface = PLAYBOOK_FreeHWSurface;
-	device->SetCaption = NULL;
-	device->SetIcon = NULL;
-	device->IconifyWindow = NULL;
-	device->GrabInput = NULL;
-	device->GetWMInfo = NULL;
-	device->InitOSKeymap = PLAYBOOK_InitOSKeymap;
-	device->PumpEvents = PLAYBOOK_PumpEvents;
+	device->SetColors        = PLAYBOOK_8Bit_SetColors;
+	device->UpdateRects      = PLAYBOOK_8Bit_UpdateRects;
+	device->VideoQuit        = PLAYBOOK_8Bit_VideoQuit;
+	device->AllocHWSurface   = PLAYBOOK_AllocHWSurface;
+	device->CheckHWBlit      = NULL;
+	device->FillHWRect       = NULL; //PLAYBOOK_FillHWRect;
+	device->SetHWColorKey    = NULL;
+	device->SetHWAlpha       = NULL;
+	device->LockHWSurface    = PLAYBOOK_LockHWSurface;
+	device->UnlockHWSurface  = PLAYBOOK_UnlockHWSurface;
+	device->FlipHWSurface    = PLAYBOOK_FlipHWSurface;
+	device->FreeHWSurface    = PLAYBOOK_FreeHWSurface;
+	device->SetCaption       = NULL;
+	device->SetIcon          = NULL;
+	device->IconifyWindow    = NULL;
+	device->GrabInput        = NULL;
+	device->GetWMInfo        = NULL;
+	device->InitOSKeymap     = PLAYBOOK_InitOSKeymap;
+	device->PumpEvents       = PLAYBOOK_PumpEvents;
 
-	device->free = PLAYBOOK_8Bit_DeleteDevice;
+	device->free             = PLAYBOOK_8Bit_DeleteDevice;
 
 	return device;
 }
@@ -139,27 +165,6 @@ SDL_Rect **PLAYBOOK_8Bit_ListModes(_THIS, SDL_PixelFormat *format, Uint32 flags)
 
 static int initializeGL(_THIS, int width, int height)
 {
-	const char *vs =
-			"attribute vec2 a_position;\n"
-			"attribute vec2 a_texcoord;\n"
-			"varying vec2 v_texcoord;\n"
-			"void main()\n"
-			"{\n"
-			"    gl_Position = vec4(a_position, 0.0, 1.0);\n"
-			"    v_texcoord = a_texcoord;\n"
-			"}\n";
-	const char *fs =
-			"uniform lowp sampler2D u_sampler;\n"
-			"uniform lowp sampler2D u_palette;\n" // TODO: Palette should be 1D.
-			"varying mediump vec2 v_texcoord;\n"
-			"void main()\n"
-			"{\n"
-			"    lowp float p = texture2D(u_sampler, v_texcoord).r;\n"
-			"    gl_FragColor = texture2D(u_palette, vec2(p,0.0));\n"
-//			"    gl_FragColor = texture2D(u_palette, v_texcoord);\n"
-//			"    gl_FragColor = texture2D(u_sampler, v_texcoord);\n"
-//			"    gl_FragColor = vec4(p, 1.0, 0.0, 1.0);\n"
-			"}\n";
 	GLint status;
 	GLuint v, f, id;
 	GLchar log[256];
@@ -168,6 +173,7 @@ static int initializeGL(_THIS, int width, int height)
 
 	v = glCreateShader(GL_VERTEX_SHADER);
 	if (!v) {
+		SLOG("Failed to create vertex shader");
 		goto error1;
 	}
 	glShaderSource(v, 1, &vs, 0);
@@ -175,12 +181,13 @@ static int initializeGL(_THIS, int width, int height)
 	glGetShaderiv(v, GL_COMPILE_STATUS, &status);
 	if (GL_FALSE == status) {
 		glGetShaderInfoLog(v, 256, NULL, log);
-		fprintf(stderr, "Failed to compile vertex shader: %s\n", log);
+		SLOG("Failed to compile vertex shader: %s", log);
 		goto error2;
 	}
 
 	f = glCreateShader(GL_FRAGMENT_SHADER);
 	if (!f) {
+		SLOG("Failed to create fragment shader");
 		goto error2;
 	}
 	glShaderSource(f, 1, &fs, 0);
@@ -188,13 +195,13 @@ static int initializeGL(_THIS, int width, int height)
 	glGetShaderiv(f, GL_COMPILE_STATUS, &status);
 	if (GL_FALSE == status) {
 		glGetShaderInfoLog(f, 256, NULL, log);
-		fprintf(stderr, "Failed to compile fragment shader: %s\n", log);
+		SLOG("Failed to compile fragment shader: %s", log);
 		goto error3;
 	}
 
 	id = glCreateProgram();
 	if (!id) {
-		fprintf(stderr, "Failed to create shader program\n");
+		SLOG("Failed to create shader program\n");
 		goto error3;
 	}
 	glAttachShader(id, v);
@@ -204,7 +211,7 @@ static int initializeGL(_THIS, int width, int height)
 	glGetProgramiv(id, GL_LINK_STATUS, &status);
 	if (GL_FALSE == status) {
 		glGetProgramInfoLog(id, 256, NULL, log);
-		fprintf(stderr, "Failed to link shader program: %s\n", log);
+		SLOG("Failed to link shader program: %s\n", log);
 		goto error4;
 	}
 
@@ -303,6 +310,8 @@ SDL_Surface *PLAYBOOK_8Bit_SetVideoMode(_THIS, SDL_Surface *current,
 	int usage = SCREEN_USAGE_OPENGL_ES2;
 	EGLint eglSurfaceAttributes[3] = { EGL_RENDER_BUFFER, EGL_BACK_BUFFER, EGL_NONE };
 
+	SLOG("Video WIDTH:%d, HEIGHT:%d", width, height);
+
 	if (!_priv->screenWindow) {
 
 		_priv->eglInfo.eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -344,19 +353,10 @@ SDL_Surface *PLAYBOOK_8Bit_SetVideoMode(_THIS, SDL_Surface *current,
 			goto error3;
 		}
 
-		rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_SIZE, sizeOfWindow);
+		rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height);
 		if (rc) {
-			SDL_SetError("Cannot resize window: %s", strerror(errno));
-			screen_destroy_window(screenWindow);
-			return NULL;
+			goto error4;
 		}
-
-//		rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_BUFFER_SIZE, sizeOfBuffer);
-//		if (rc) {
-//			SDL_SetError("Cannot resize window buffer: %s", strerror(errno));
-//			screen_destroy_window(screenWindow);
-//			return NULL;
-//		}
 
 		rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_FORMAT, &format);
 		if (rc) {
@@ -367,17 +367,6 @@ SDL_Surface *PLAYBOOK_8Bit_SetVideoMode(_THIS, SDL_Surface *current,
 		rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_USAGE, &usage);
 		if (rc) {
 			SDL_SetError("Cannot set window usage: %s", strerror(errno));
-			goto error4;
-		}
-
-		int angle = 0;
-		char *orientation = getenv("ORIENTATION");
-		if (orientation) {
-			 angle = atoi(orientation);
-		}
-		rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_ROTATION, &angle);
-		if (rc) {
-			SDL_SetError("Cannot set window rotation: %s", strerror(errno));
 			goto error4;
 		}
 
@@ -444,6 +433,9 @@ SDL_Surface *PLAYBOOK_8Bit_SetVideoMode(_THIS, SDL_Surface *current,
 //	this->physpal = AllocatePalette(256);
 //	current->format->palette = this->physpal;
 	_priv->surface = current;
+	_priv->w       = width;
+	_priv->h       = height;
+	_priv->angle   = angle;
 
 	return current;
 error5:
@@ -492,19 +484,17 @@ void PLAYBOOK_8Bit_UpdateRects(_THIS, int numrects, SDL_Rect *rects)
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, _priv->glInfo.screen[_priv->glInfo.writableScreen]);
 	_priv->glInfo.writableScreen = !_priv->glInfo.writableScreen;
-	int i=0;
 
 	// TODO: Need to respect the rects, rather than always update full screen.
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, _priv->surface->w, _priv->surface->h,
 			0, GL_LUMINANCE, GL_UNSIGNED_BYTE, _priv->surface->pixels);
+
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, _priv->glInfo.palette);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glEnableVertexAttribArray(_priv->glInfo.positionAttrib);
 	glEnableVertexAttribArray(_priv->glInfo.texcoordAttrib);
-	static const GLfloat vertices[] = {-1.0,-1.0,1.0,-1.0,-1.0,1.0,1.0,1.0};
-	static const GLfloat texCoords[] = {0.0,1.0,1.0,1.0,0.0,0.0,1.0,0.0};
 	glVertexAttribPointer(_priv->glInfo.positionAttrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), vertices);
 	glVertexAttribPointer(_priv->glInfo.texcoordAttrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), texCoords);
 
@@ -520,6 +510,12 @@ int PLAYBOOK_8Bit_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *color
 {
 	static int flip = 0;
 	flip++;
+
+	if (ncolors > 256)
+	{
+		SLOG("ERROR!!! ncolors[%d] is more than 256!!", ncolors);
+		return 0;
+	}
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, _priv->glInfo.palette);
@@ -540,8 +536,6 @@ int PLAYBOOK_8Bit_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *color
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glEnableVertexAttribArray(_priv->glInfo.positionAttrib);
 		glEnableVertexAttribArray(_priv->glInfo.texcoordAttrib);
-		static const GLfloat vertices[] = {-1.0,-1.0,1.0,-1.0,-1.0,1.0,1.0,1.0};
-		static const GLfloat texCoords[] = {0.0,1.0,1.0,1.0,0.0,0.0,1.0,0.0};
 		glVertexAttribPointer(_priv->glInfo.positionAttrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), vertices);
 		glVertexAttribPointer(_priv->glInfo.texcoordAttrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), texCoords);
 

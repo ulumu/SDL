@@ -37,6 +37,11 @@
 #include "touchcontroloverlay.h"
 
 #include <errno.h>
+#include <stdio.h>
+
+static int rc;
+#define SCREEN_API(x, y) rc = x; \
+    if (rc) fprintf(stderr, "\n%s in %s: %d", y, __FUNCTION__, errno)
 
 #define SDLK_PB_TILDE 160 // Conflicts with SDLK_WORLD_0.
 static SDL_keysym Playbook_Keycodes[256];
@@ -64,6 +69,328 @@ struct TouchEvent {
 };
 static struct TouchEvent moveEvent;
 
+
+// Structure representing a game controller.
+typedef struct GameController_t {
+    // Static device info.
+    screen_device_t handle;
+    int type;
+    int analogCount;
+    int buttonCount;
+    char id[64];
+    char vendor[64];
+    char product[64];
+
+    // Current state.
+    int buttons;
+    int analog0[3];
+    int analog1[3];
+
+    // Text to display to the user about this controller.
+    char deviceString[256];
+    char buttonsString[128];
+    char analog0String[128];
+    char analog1String[128];
+
+    int  dpadPressState[4];
+    int  buttonPressState[24];
+} GameController_t;
+
+// Controller information.
+#define MAX_CONTROLLERS  2
+static GameController_t gGameController[MAX_CONTROLLERS];
+
+#define GAME_DPAD_MASK      \
+	(SCREEN_DPAD_UP_GAME_BUTTON   | \
+	 SCREEN_DPAD_DOWN_GAME_BUTTON | \
+	 SCREEN_DPAD_LEFT_GAME_BUTTON | \
+	 SCREEN_DPAD_RIGHT_GAME_BUTTON)
+
+#define GAME_BUTTON_MASK    \
+	(SCREEN_A_GAME_BUTTON | \
+	 SCREEN_B_GAME_BUTTON | \
+	 SCREEN_C_GAME_BUTTON | \
+	 SCREEN_X_GAME_BUTTON | \
+	 SCREEN_Y_GAME_BUTTON | \
+	 SCREEN_Z_GAME_BUTTON | \
+	 SCREEN_L1_GAME_BUTTON| \
+	 SCREEN_L2_GAME_BUTTON| \
+	 SCREEN_L3_GAME_BUTTON| \
+	 SCREEN_R1_GAME_BUTTON| \
+	 SCREEN_R2_GAME_BUTTON| \
+	 SCREEN_R3_GAME_BUTTON  )
+
+#define GAME_MENU_MASK      \
+	(SCREEN_MENU1_GAME_BUTTON | \
+	 SCREEN_MENU2_GAME_BUTTON | \
+	 SCREEN_MENU3_GAME_BUTTON | \
+	 SCREEN_MENU4_GAME_BUTTON   )
+
+static void loadController(GameController_t* controller)
+{
+    // Query libscreen for information about this device.
+    SCREEN_API(screen_get_device_property_iv(controller->handle, SCREEN_PROPERTY_TYPE, &controller->type), "SCREEN_PROPERTY_TYPE");
+    SCREEN_API(screen_get_device_property_cv(controller->handle, SCREEN_PROPERTY_ID_STRING, sizeof(controller->id), controller->id), "SCREEN_PROPERTY_ID_STRING");
+    SCREEN_API(screen_get_device_property_iv(controller->handle, SCREEN_PROPERTY_BUTTON_COUNT, &controller->buttonCount), "SCREEN_PROPERTY_BUTTON_COUNT");
+
+    // Check for the existence of analog sticks.
+    if (!screen_get_device_property_iv(controller->handle, SCREEN_PROPERTY_ANALOG0, controller->analog0)) {
+    	++controller->analogCount;
+    }
+
+    if (!screen_get_device_property_iv(controller->handle, SCREEN_PROPERTY_ANALOG1, controller->analog0)) {
+    	++controller->analogCount;
+    }
+
+    if (controller->type == SCREEN_EVENT_GAMEPAD) {
+        sprintf(controller->deviceString, "Gamepad device ID: %s", controller->id);
+    } else {
+        sprintf(controller->deviceString, "Joystick device: %s", controller->id);
+    }
+}
+
+static void discoverControllers(screen_context_t screenCtx)
+{
+    // Get an array of all available devices.
+    int deviceCount;
+    int i;
+    int controllerIndex = 0;
+
+    SCREEN_API(screen_get_context_property_iv(screenCtx, SCREEN_PROPERTY_DEVICE_COUNT, &deviceCount), "SCREEN_PROPERTY_DEVICE_COUNT");
+    screen_device_t* devices = (screen_device_t*)calloc(deviceCount, sizeof(screen_device_t));
+    SCREEN_API(screen_get_context_property_pv(screenCtx, SCREEN_PROPERTY_DEVICES, (void**)devices), "SCREEN_PROPERTY_DEVICES");
+
+    // Scan the list for gamepad and joystick devices.
+    for (i = 0; i < deviceCount; i++) {
+        int type;
+        SCREEN_API(screen_get_device_property_iv(devices[i], SCREEN_PROPERTY_TYPE, &type), "SCREEN_PROPERTY_TYPE");
+
+        if (!rc && (type == SCREEN_EVENT_GAMEPAD || type == SCREEN_EVENT_JOYSTICK)) {
+            // Assign this device to control Player 1 or Player 2.
+        	GameController_t* controller = &gGameController[controllerIndex];
+            controller->handle = devices[i];
+            loadController(controller);
+
+            // We'll just use the first compatible devices we find.
+            controllerIndex++;
+            if (controllerIndex == MAX_CONTROLLERS) {
+                break;
+            }
+        }
+    }
+
+    free(devices);
+}
+
+//
+// TODO: This is currently hard coded to KEY entry. Should send to SDL joystick event to handle
+//
+static void handleGameControllerEvent(screen_event_t event)
+{
+    screen_device_t   device;
+    GameController_t* controller = NULL;
+	SDL_keysym keysym;
+	int        scancodes[4] = {72, 75, 77, 80}; // From DosBox, keyboard.cpp
+	int        sdlState = SDL_PRESSED;
+	int        i;
+	int        tmp[16];
+
+    SCREEN_API(screen_get_event_property_pv(event, SCREEN_PROPERTY_DEVICE, (void**)&device), "SCREEN_PROPERTY_DEVICE");
+
+    for (i = 0; i < MAX_CONTROLLERS; ++i) {
+        if (device == gGameController[i].handle) {
+            controller = &gGameController[i];
+            break;
+        }
+    }
+
+    if (!controller) {
+        return;
+    }
+
+    // Store the controller's new state.
+    SCREEN_API(screen_get_event_property_iv(event, SCREEN_PROPERTY_BUTTONS, &controller->buttons), "SCREEN_PROPERTY_BUTTONS");
+
+    if (controller->analogCount > 0) {
+    	SCREEN_API(screen_get_event_property_iv(event, SCREEN_PROPERTY_ANALOG0, controller->analog0), "SCREEN_PROPERTY_ANALOG0");
+    }
+
+    if (controller->analogCount == 2) {
+        SCREEN_API(screen_get_event_property_iv(event, SCREEN_PROPERTY_ANALOG1, controller->analog1), "SCREEN_PROPERTY_ANALOG1");
+    }
+
+//    enum {
+//    	SCREEN_A_GAME_BUTTON                   = (1 << 0),
+//    	SCREEN_B_GAME_BUTTON                   = (1 << 1),
+//    	SCREEN_C_GAME_BUTTON                   = (1 << 2),
+//    	SCREEN_X_GAME_BUTTON                   = (1 << 3),
+//    	SCREEN_Y_GAME_BUTTON                   = (1 << 4),
+//    	SCREEN_Z_GAME_BUTTON                   = (1 << 5),
+//    	SCREEN_MENU1_GAME_BUTTON               = (1 << 6),
+//    	SCREEN_MENU2_GAME_BUTTON               = (1 << 7),
+//    	SCREEN_MENU3_GAME_BUTTON               = (1 << 8),
+//    	SCREEN_MENU4_GAME_BUTTON               = (1 << 9),
+//    	SCREEN_L1_GAME_BUTTON                  = (1 << 10),
+//    	SCREEN_L2_GAME_BUTTON                  = (1 << 11),
+//    	SCREEN_L3_GAME_BUTTON                  = (1 << 12),
+//    	SCREEN_R1_GAME_BUTTON                  = (1 << 13),
+//    	SCREEN_R2_GAME_BUTTON                  = (1 << 14),
+//    	SCREEN_R3_GAME_BUTTON                  = (1 << 15),
+//    	SCREEN_DPAD_UP_GAME_BUTTON             = (1 << 16),
+//    	SCREEN_DPAD_DOWN_GAME_BUTTON           = (1 << 17),
+//    	SCREEN_DPAD_LEFT_GAME_BUTTON           = (1 << 18),
+//    	SCREEN_DPAD_RIGHT_GAME_BUTTON          = (1 << 19),
+//    };
+
+    memset(tmp, 0, sizeof(tmp));
+    if (controller->buttons & GAME_DPAD_MASK)
+    {
+    	if (controller->buttons & SCREEN_DPAD_UP_GAME_BUTTON)
+    	{
+    		tmp[0] = 1;
+    	}
+    	if (controller->buttons & SCREEN_DPAD_DOWN_GAME_BUTTON)
+    	{
+    		tmp[1] = 1;
+    	}
+    	if (controller->buttons & SCREEN_DPAD_RIGHT_GAME_BUTTON)
+    	{
+    		tmp[2] = 1;
+    	}
+    	if (controller->buttons & SCREEN_DPAD_LEFT_GAME_BUTTON)
+    	{
+    		tmp[3] = 1;
+    	}
+    }
+
+    // handle DPAD for both PRESS & RELEASE logic
+	for (i=0; i<4; i++)
+	{
+		if (controller->dpadPressState[i] != tmp[i])
+		{
+			if (tmp[i])
+			{
+				sdlState = SDL_PRESSED;
+			}
+			else
+			{
+				sdlState = SDL_RELEASED;
+			}
+			keysym.sym      = SDLK_UP + i;
+			keysym.scancode = scancodes[i];
+			SDL_PrivateKeyboard(sdlState, &keysym);
+			controller->dpadPressState[i] = tmp[i];
+		}
+	}
+
+
+	memset(tmp, 0, sizeof(tmp));
+    if (controller->buttons & (GAME_BUTTON_MASK | GAME_MENU_MASK) )
+    {
+        // TODO: need to support generic Button to SDL control mapping from sdl-control.xml
+    	//       only map X, Y, A, B, START, RESET for now (Hard coded)
+    	if (controller->buttons & SCREEN_X_GAME_BUTTON)
+    	{
+    		tmp[0] = SDLK_SPACE;  // Button II
+    	}
+    	if (controller->buttons & SCREEN_Y_GAME_BUTTON)
+    	{
+    		tmp[1] = SDLK_LALT;   // Button I
+    	}
+    	if (controller->buttons & SCREEN_MENU1_GAME_BUTTON)
+    	{
+    		tmp[2] = SDLK_RETURN; // MENU 1, "-" button on wiimote
+    	}
+    	if (controller->buttons & SCREEN_MENU2_GAME_BUTTON)
+    	{
+    		tmp[3] = SDLK_BACKSPACE; // MENU 2, "+" button on wiimote
+    	}
+    	if (controller->buttons & SCREEN_MENU3_GAME_BUTTON)
+    	{
+    		tmp[4] = SDLK_0;      // MENU 3, HOME button on wiimote
+    	}
+    	if (controller->buttons & (SCREEN_B_GAME_BUTTON | SCREEN_L1_GAME_BUTTON) )
+    	{
+    		tmp[5] = SDLK_a;      // Button B of Wiimote, Simulate L
+    	}
+    	if (controller->buttons & (SCREEN_A_GAME_BUTTON | SCREEN_R1_GAME_BUTTON) )
+    	{
+    		tmp[6] = SDLK_s;      // Button A of Wiimote, Simulate R
+    	}
+    	// Combo key R+START (in wiimote, "A"+"-"), Backup game state
+    	if ( (controller->buttons & (SCREEN_A_GAME_BUTTON | SCREEN_MENU1_GAME_BUTTON)) == (SCREEN_A_GAME_BUTTON | SCREEN_MENU1_GAME_BUTTON) )
+    	{
+    		tmp[2] = tmp[6] = 0;  // Clear original button state
+    		tmp[7] = SDLK_F8;     // Backup game state
+    	}
+    	// Combo key R+SELECT (in wiimote, "A"+"+"), Restore game state
+    	if ( (controller->buttons & (SCREEN_A_GAME_BUTTON | SCREEN_MENU2_GAME_BUTTON)) == (SCREEN_A_GAME_BUTTON | SCREEN_MENU2_GAME_BUTTON) )
+    	{
+    		tmp[3] = tmp[6] = 0;  // Clear original button state
+    		tmp[8] = SDLK_F9;     // Restore game state
+    	}
+
+    }
+
+	for (i=0; i<9; i++)
+	{
+		if (controller->buttonPressState[i] != tmp[i])
+		{
+			if (tmp[i])
+			{
+				sdlState = SDL_PRESSED;
+				controller->buttonPressState[i] = tmp[i];
+			}
+			else
+			{
+				sdlState = SDL_RELEASED;
+				tmp[i] = controller->buttonPressState[i];
+				controller->buttonPressState[i] = 0;
+			}
+
+			keysym.sym      = tmp[i];
+			keysym.mod      = KMOD_NONE;
+			keysym.scancode = tmp[i];
+			keysym.unicode  = 0;
+			SDL_PrivateKeyboard(sdlState, &keysym);
+		}
+	}
+
+}
+
+static void handleDeviceEvent(screen_event_t event)
+{
+    // A device was attached or removed.
+    screen_device_t device;
+    int attached;
+    int type;
+    int i;
+
+    SCREEN_API(screen_get_event_property_pv(event, SCREEN_PROPERTY_DEVICE, (void**)&device), "SCREEN_PROPERTY_DEVICE");
+    SCREEN_API(screen_get_event_property_iv(event, SCREEN_PROPERTY_ATTACHED, &attached), "SCREEN_PROPERTY_ATTACHED");
+
+    if (attached) {
+        SCREEN_API(screen_get_device_property_iv(device, SCREEN_PROPERTY_TYPE, &type), "SCREEN_PROPERTY_TYPE");
+    }
+
+
+    if (attached && (type == SCREEN_EVENT_GAMEPAD || type == SCREEN_EVENT_JOYSTICK)) {
+        for (i = 0; i < MAX_CONTROLLERS; ++i) {
+            if (!gGameController[i].handle) {
+            	gGameController[i].handle = device;
+                loadController(&gGameController[i]);
+                break;
+            }
+        }
+    } else {
+        for (i = 0; i < MAX_CONTROLLERS; ++i) {
+            if (device == gGameController[i].handle) {
+                memset(&gGameController[i], 0, sizeof(GameController_t));
+                break;
+            }
+        }
+    }
+}
 
 static void handlePointerEvent(screen_event_t event, screen_window_t window)
 {
@@ -857,6 +1184,15 @@ void handleScreenEvent(_THIS, bps_event_t *event)
 				handleMtouchEvent(se, window, type);
 			}
 			break;
+
+		case SCREEN_EVENT_DEVICE:
+			handleDeviceEvent(se);
+			break;
+
+        case SCREEN_EVENT_GAMEPAD:
+        case SCREEN_EVENT_JOYSTICK:
+        	handleGameControllerEvent(se);
+        	break;
 	}
 }
 
@@ -938,6 +1274,8 @@ PLAYBOOK_PumpEvents(_THIS)
 
 void PLAYBOOK_InitOSKeymap(_THIS)
 {
+	discoverControllers(_priv->screenContext);
+
 	{
 		// We match perfectly from 32 to 64
 		int i = 32;

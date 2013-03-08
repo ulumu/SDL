@@ -29,7 +29,8 @@
 #include "SDL_playbookyuv_c.h"
 
 #include <EGL/egl.h>
-#include <GLES/gl.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #include <errno.h> // ::errno
 #include <time.h> // struct tm, clock_gettime
 
@@ -66,46 +67,26 @@ SDL_Surface *PLAYBOOK_SetVideoMode_GL(_THIS, SDL_Surface *current,
 		EGL_BLUE_SIZE, 8,
 		EGL_ALPHA_SIZE, 8,
 		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES_BIT,
+		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_SAMPLE_BUFFERS, 1,
+		EGL_SAMPLES, 4,
 		EGL_NONE
 	};
-	EGLint contextAttributes[3] = { EGL_CONTEXT_CLIENT_VERSION, 1, EGL_NONE };
+	EGLint contextAttributes[3] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
 	EGLConfig configs[1];
 	EGLint configCount;
 	screen_window_t screenWindow;
 	int format = SCREEN_FORMAT_RGBX8888;
-	int sizeOfWindow[2] = {this->info.current_w, this->info.current_h};
-	int sizeOfBuffer[2] = {width, height};
-	int usage = SCREEN_USAGE_OPENGL_ES1;
+	int usage = SCREEN_USAGE_OPENGL_ES2;
 	EGLint eglSurfaceAttributes[3] = { EGL_RENDER_BUFFER, EGL_BACK_BUFFER, EGL_NONE };
+	int angle = 0;
 
-	if (getenv("WIDTH") != NULL && getenv("HEIGHT") != NULL) {
-		sizeOfWindow[0] = atoi(getenv("WIDTH"));
-		sizeOfWindow[1] = atoi(getenv("HEIGHT"));
-	} else {
-		rc = screen_get_window_property_iv(_priv->mainWindow, SCREEN_PROPERTY_SIZE, sizeOfWindow);
-		if (rc) {
-			goto error1;
-		}
-	}
+	SLOG("GL2 Video setup, WIDTH:%d, HEIGHT:%d", width, height);
 
-	if (_priv->screenWindow) {
-		rc = eglMakeCurrent(_priv->eglInfo.eglDisplay, 0, 0, 0);
-		if (rc != EGL_TRUE) {
-			egl_perror("eglMakeNoneCurrent");
-			goto error1;
-		}
+	if (!_priv->screenWindow) {
 
-		rc = eglDestroySurface(_priv->eglInfo.eglDisplay, _priv->eglInfo.eglSurface);
-		if (rc != EGL_TRUE) {
-			egl_perror("eglDestroySurface");
-			goto error1;
-		}
+		SLOG("First time create Video EGL window");
 
-		_priv->eglInfo.eglSurface = 0;
-	}
-
-	if (!_priv->eglInfo.eglDisplay) {
 		_priv->eglInfo.eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 		if (_priv->eglInfo.eglDisplay == EGL_NO_DISPLAY) {
 			egl_perror("eglGetDisplay");
@@ -117,79 +98,76 @@ SDL_Surface *PLAYBOOK_SetVideoMode_GL(_THIS, SDL_Surface *current,
 			egl_perror("eglInitialize");
 			goto error1;
 		}
-	}
 
-	rc = eglBindAPI(EGL_OPENGL_ES_API);
-	if (rc != EGL_TRUE) {
-		egl_perror("eglBindAPI");
-		goto error2;
-	}
+		rc = eglBindAPI(EGL_OPENGL_ES_API);
+		if (rc != EGL_TRUE) {
+			egl_perror("eglBindAPI");
+			goto error2;
+		}
 
-	rc = eglChooseConfig(_priv->eglInfo.eglDisplay, attributes, configs, 1, &configCount);
-	if (rc != EGL_TRUE)	{
-		egl_perror("eglChooseConfig");
-		goto error2;
-	} else if (configCount <= 0)	{
-		fprintf(stderr, "No matching configurations found.");
-		goto error2;
-	}
+		rc = eglChooseConfig(_priv->eglInfo.eglDisplay, attributes, configs, 1, &configCount);
+		if (rc != EGL_TRUE)	{
+			egl_perror("eglBindAPI");
+			eglTerminate(_priv->eglInfo.eglDisplay);
+			return NULL;
+		} else if (configCount <= 0)	{
+			fprintf(stderr, "No matching configurations found.");
+			goto error2;
+		}
 
-	if (!_priv->eglInfo.eglContext) {
 		_priv->eglInfo.eglContext = eglCreateContext(_priv->eglInfo.eglDisplay, configs[0], EGL_NO_CONTEXT, contextAttributes);
 		if (_priv->eglInfo.eglContext == EGL_NO_CONTEXT)	{
 			egl_perror("eglCreateContext");
 			goto error2;
 		}
+
+		screenWindow = PLAYBOOK_CreateWindow(this, current, width, height, bpp);
+		if (screenWindow == NULL) {
+			goto error3;
+		}
+
+		rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height);
+		if (rc) {
+			goto error4;
+		}
+
+		rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_FORMAT, &format);
+		if (rc) {
+			SDL_SetError("Cannot set window format: %s", strerror(errno));
+			goto error4;
+		}
+
+		rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_USAGE, &usage);
+		if (rc) {
+			SDL_SetError("Cannot set window usage: %s", strerror(errno));
+			goto error4;
+		}
+
+		rc = screen_create_window_buffers(screenWindow, 2);
+		if (rc) {
+			SDL_SetError("Cannot create window buffers: %s", strerror(errno));
+			goto error4;
+		}
+
+		_priv->eglInfo.eglSurface = eglCreateWindowSurface(_priv->eglInfo.eglDisplay, configs[0],
+				screenWindow, (EGLint*)&eglSurfaceAttributes);
+		if (_priv->eglInfo.eglSurface == EGL_NO_SURFACE) {
+			egl_perror("eglCreateWindowSurface");
+			goto error4;
+		}
+
+		rc = eglMakeCurrent(_priv->eglInfo.eglDisplay, _priv->eglInfo.eglSurface, _priv->eglInfo.eglSurface, _priv->eglInfo.eglContext);
+		if (rc != EGL_TRUE) {
+			egl_perror("eglMakeCurrent");
+			goto error5;
+		}
+		locateTCOControlFile(this);
+		if (_priv->tcoControlsDir) {
+			initializeOverlay(this, screenWindow);
+		}
+
+		_priv->screenWindow = screenWindow;
 	}
-
-	screenWindow = PLAYBOOK_CreateWindow(this, current, width, height, bpp);
-	if (screenWindow == NULL) {
-		goto error3;
-	}
-
-    rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height);
-    if (rc) {
-    	SDL_SetError("Failed to set window size: %s", strerror(errno));
-    	goto error4;
-    }
-
-	rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_FORMAT, &format);
-	if (rc) {
-		SDL_SetError("Cannot set window format: %s", strerror(errno));
-		goto error4;
-	}
-
-	rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_USAGE, &usage);
-	if (rc) {
-		SDL_SetError("Cannot set window usage: %s", strerror(errno));
-		goto error4;
-	}
-
-	rc = screen_create_window_buffers(screenWindow, 2);
-	if (rc) {
-		SDL_SetError("Cannot create window buffers: %s", strerror(errno));
-		goto error4;
-	}
-
-	_priv->eglInfo.eglSurface = eglCreateWindowSurface(_priv->eglInfo.eglDisplay, configs[0],
-			screenWindow, (EGLint*)&eglSurfaceAttributes);
-	if (_priv->eglInfo.eglSurface == EGL_NO_SURFACE) {
-		egl_perror("eglCreateWindowSurface");
-		goto error4;
-	}
-
-	rc = eglMakeCurrent(_priv->eglInfo.eglDisplay, _priv->eglInfo.eglSurface, _priv->eglInfo.eglSurface, _priv->eglInfo.eglContext);
-	if (rc != EGL_TRUE) {
-		egl_perror("eglMakeCurrent");
-		goto error5;
-	}
-
-	locateTCOControlFile(this);
-	if (_priv->tcoControlsDir) {
-		initializeOverlay(this, screenWindow);	
-	}
-
-	_priv->screenWindow = screenWindow;
 
 	current->flags &= ~SDL_RESIZABLE;
 	current->flags |= SDL_FULLSCREEN;
@@ -197,9 +175,11 @@ SDL_Surface *PLAYBOOK_SetVideoMode_GL(_THIS, SDL_Surface *current,
 	current->flags |= SDL_OPENGL;
 	current->w = width;
 	current->h = height;
+	current->pitch = width;
 	current->pixels = 0;
 	_priv->surface = current;
 	return current;
+
 error5:
 	eglDestroySurface(_priv->eglInfo.eglDisplay, _priv->eglInfo.eglSurface);
 	_priv->eglInfo.eglSurface = 0;

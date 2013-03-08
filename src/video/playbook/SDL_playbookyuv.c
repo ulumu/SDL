@@ -54,8 +54,8 @@ SDL_Overlay* PLAYBOOK_CreateYUVOverlay(_THIS, int width, int height, Uint32 form
 	}
 
 	overlay->format = format;
-	overlay->w = width;
-	overlay->h = height;
+	overlay->w      = width;
+	overlay->h      = height;
 	overlay->hwdata = NULL;
 
 	overlay->hwfuncs = &PLAYBOOK_yuvfuncs;
@@ -88,5 +88,8 @@ int PLAYBOOK_DisplayYUVOverlay(_THIS, SDL_Overlay* overlay, SDL_Rect* src, SDL_R
 
 void PLAYBOOK_FreeYUVOverlay(_THIS, SDL_Overlay* overlay)
 {
-
+	if (overlay)
+	{
+		SDL_free(overlay);
+	}
 }

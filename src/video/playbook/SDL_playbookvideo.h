@@ -27,6 +27,8 @@
 #include "../SDL_sysvideo.h"
 #include <screen/screen.h>
 
+#define SLOG(fmt, ...) fprintf(stderr, "[SDL-LOG][%s:%d]:"fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__);
+
 /* Hidden "this" pointer for the video functions */
 #define _THIS	SDL_VideoDevice *this
 #define _priv   this->hidden

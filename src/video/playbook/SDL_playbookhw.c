@@ -50,8 +50,22 @@ int PLAYBOOK_AllocHWSurface(_THIS, SDL_Surface *surface)
 		goto fail2;
 	}
 
+	screen_buffer_t screen_pbuf;
+	rc = screen_get_pixmap_property_pv(surface->hwdata->pixmap, SCREEN_PROPERTY_RENDER_BUFFERS, (void **)&screen_pbuf);
+	if (rc) {
+		fprintf(stderr, "Failed to get SCREEN_PROPERTY_RENDER_BUFFERS: screen_get_pixmap_property_pv returned %s\n", strerror(errno));
+		goto fail2;
+	}
+
+	rc = screen_get_buffer_property_iv(screen_pbuf, SCREEN_PROPERTY_STRIDE, &_priv->pitch);
+	if (rc) {
+		SDL_SetError("Cannot get stride: %s", strerror(errno));
+		goto fail2;
+	}
+
 	surface->flags |= SDL_HWSURFACE;
 	surface->flags |= SDL_PREALLOC;
+	surface->pitch  = _priv->pitch;
 
 	return 0;
 
@@ -88,9 +102,11 @@ void PLAYBOOK_UnlockHWSurface(_THIS, SDL_Surface *surface)
 
 int PLAYBOOK_FlipHWSurface(_THIS, SDL_Surface *surface)
 {
-	fprintf(stderr, "Flip HW surface %08x\n", surface);
+//	fprintf(stderr, "Flip HW surface %08x\n", (int)surface);
 	// FIXME: This doesn't work properly yet. It flashes black, I think the new render buffers are wrong.
-	static int fullRect[] = {0, 0, 1024, 600};
+//	static int fullRect[] = {0, 0, 1024, 600};
+	int fullRect[] = {0, 0, _priv->w, _priv->h};
+
 	//screen_flush_blits(_priv->screenContext, 0);
 	int result = screen_post_window(_priv->screenWindow, surface->hwdata->front, 1, fullRect, 0);
 
@@ -107,14 +123,22 @@ int PLAYBOOK_FlipHWSurface(_THIS, SDL_Surface *surface)
 		SDL_SetError("Cannot get buffer pointer: %s", strerror(errno));
 		return NULL;
 	}
+
+	rc = screen_get_buffer_property_iv(windowBuffer[0], SCREEN_PROPERTY_STRIDE, &_priv->pitch);
+	if (rc) {
+		SDL_SetError("Cannot get stride: %s", strerror(errno));
+		return NULL;
+	}
+
 	surface->hwdata->front = windowBuffer[0];
 	surface->pixels = _priv->pixels;
+	surface->pitch  = _priv->pitch;
 	return 0;
 }
 
 int PLAYBOOK_FillHWRect(_THIS, SDL_Surface *dst, SDL_Rect *rect, Uint32 color)
 {
-	fprintf(stderr, "Fill HW rect\n");
+//	fprintf(stderr, "Fill HW rect\n");
 	if (dst->flags & SDL_HWSURFACE) {
 		int attribs[] = {SCREEN_BLIT_DESTINATION_X, rect->x,
 						SCREEN_BLIT_DESTINATION_Y, rect->y,

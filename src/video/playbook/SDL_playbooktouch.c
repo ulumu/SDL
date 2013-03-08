@@ -15,6 +15,7 @@
 
 #include "touchcontroloverlay.h"
 #include "SDL_playbookvideo.h"
+#include <unistd.h>
 
 int handleKey(int sym, int mod, int scancode, uint16_t unicode, int event)
 {
@@ -214,26 +215,43 @@ void locateTCOControlFile(_THIS)
 {
     const char *filename = "sdl-controls.xml";
     char *homeDir = SDL_getenv("HOME");
-    char fullPath[512];
-    sprintf(fullPath, "%s/../%s", homeDir, filename);
-    int fd = fopen(fullPath, "r");
-    if (fd) {
-        _priv->tcoControlsDir = SDL_malloc(strlen(fullPath) - strlen(filename) + 1);
-        strncpy(_priv->tcoControlsDir, fullPath, strlen(fullPath) - strlen(filename));
-        _priv->tcoControlsDir[strlen(fullPath)-strlen(filename)] = '\0';
-        fclose(fd);
-    } else {
+    char  fullPath[512];
+    FILE *fd = NULL;
+
+    // Use SDL multi-mouse controls as default
+    _priv->tcoControlsDir = 0;
+
+    if (homeDir == NULL)
+    {
+    	return;
+    }
+
+    sprintf(fullPath, "%s/%s", homeDir, filename);
+    fd = fopen(fullPath, "r");
+
+    if (fd == NULL)
+    {
+    	sprintf(fullPath, "%s/../%s", homeDir, filename);
+		fd = fopen(fullPath, "r");
+    }
+
+    if (fd == NULL)
+    {
         sprintf(fullPath, "%s/../app/native/%s", homeDir, filename);
         fd = fopen(fullPath, "r");
-        if (fd) {
-            _priv->tcoControlsDir = SDL_malloc(strlen(fullPath) - strlen(filename) + 1);
-            strncpy(_priv->tcoControlsDir, fullPath, strlen(fullPath) - strlen(filename));
-            _priv->tcoControlsDir[strlen(fullPath)-strlen(filename)] = '\0';
-            fclose(fd);
-        } else {
-            _priv->tcoControlsDir = 0; // Use SDL multi-mouse controls.
-        }
     }
+
+    if (fd)
+    {
+        _priv->tcoControlsDir = SDL_malloc(strlen(fullPath) - strlen(filename) + 1);
+        if (_priv->tcoControlsDir)
+        {
+			strncpy(_priv->tcoControlsDir, fullPath, strlen(fullPath) - strlen(filename));
+			_priv->tcoControlsDir[strlen(fullPath)-strlen(filename)] = '\0';
+        }
+        fclose(fd);
+    }
+
 }
 
 void initializeOverlay(_THIS, screen_window_t screenWindow)
@@ -265,7 +283,13 @@ void initializeOverlay(_THIS, screen_window_t screenWindow)
 	SDL_free(_priv->tcoControlsDir);
 	if (loaded) {
 		_priv->tcoControlsDir = 1;
-		tco_showlabels(_priv->emu_context, screenWindow);
+
+		// hideTco is set within SDL_SYS_JoystickInit
+		// if a joystick is detected, then there is no need to display the overlay Label
+		if (_priv->hideTco == 0)
+			tco_showlabels(_priv->emu_context, screenWindow);
+		else
+			tco_hidelabels(_priv->emu_context, screenWindow);
 	} else {
 		tco_shutdown(&_priv->emu_context);
 		_priv->tcoControlsDir = 0;
