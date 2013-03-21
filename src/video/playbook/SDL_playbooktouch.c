@@ -264,7 +264,7 @@ void initializeOverlay(_THIS, screen_window_t screenWindow)
 
 	if(!_priv->tcoControlsDir) {
 		// Immediately fall back to SDL multi-mouse controls
-		fprintf(stderr, "Unable to initialize TCO with a NULL tcoControlsDir");
+		SLOG("Unable to initialize TCO with a NULL tcoControlsDir");
 		return;
 	}
 

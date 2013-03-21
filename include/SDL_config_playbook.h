@@ -107,7 +107,7 @@
 /* Enable the QNX cdrom driver (src/cdrom/dummy/\*.c) */
 #define SDL_CDROM_QNX	1
 
-/* Enable the stub joystick driver (src/joystick/dummy/\*.c) */
+/* Enable the joystick driver (src/joystick/playbook/\*.c) */
 #define SDL_JOYSTICK_PLAYBOOK	1
 
 /* Enable the dlopen shared object loader (src/loadso/dlopen/\*.c) */

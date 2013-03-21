@@ -198,7 +198,11 @@ int SDL_SYS_JoystickInit(void)
 		return (SDL_numjoysticks);
 	}
 	else
+	{
+		SLOG("No joystick found, set hideTco to false");
+		_priv->hideTco = 0;
 		return(-1);
+	}
 }
 
 /* Function to get the device-dependent name of a joystick */

@@ -51,6 +51,7 @@ struct SDL_PrivateVideoData {
     void* pixels;
     int pitch;
     int eventYOffset;
+    int hideTco;
 
     SDL_Rect *SDL_modelist[SDL_NUMMODES+1];
 

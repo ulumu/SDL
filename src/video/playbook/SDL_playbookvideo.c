@@ -260,6 +260,8 @@ int PLAYBOOK_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	if (getenv("WIDTH") != NULL && getenv("HEIGHT") != NULL) {
 		screenResolution[0] = atoi(getenv("WIDTH"));
 		screenResolution[1] = atoi(getenv("HEIGHT"));
+
+		SLOG("screen WIDTH=%d, HEIGHT=%d", screenResolution[0], screenResolution[1]);
 	} else {
 		rc = screen_get_display_property_iv(displays[0], SCREEN_PROPERTY_SIZE, screenResolution);
 		if (rc) {

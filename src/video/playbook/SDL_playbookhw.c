@@ -12,7 +12,11 @@
 
 int PLAYBOOK_AllocHWSurface(_THIS, SDL_Surface *surface)
 {
-	fprintf(stderr, "Allocate HW surface %08x\n", surface);
+	if (surface)
+	{
+		SLOG("Allocate HW surface %08X, W:%d H:%d", (int)surface, surface->w, surface->h);
+	}
+
 	if (surface->hwdata != NULL) {
 		fprintf(stderr, "Surface already has hwdata\n");
 		return -1;
@@ -80,7 +84,7 @@ fail1:
 
 void PLAYBOOK_FreeHWSurface(_THIS, SDL_Surface *surface)
 {
-	fprintf(stderr, "Free HW surface %08x\n", surface);
+//	fprintf(stderr, "Free HW surface %08x\n", surface);
 	if (surface->hwdata) {
 		screen_destroy_pixmap_buffer(surface->hwdata->pixmap);
 		screen_destroy_pixmap(surface->hwdata->pixmap);
