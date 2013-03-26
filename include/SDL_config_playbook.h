@@ -97,6 +97,7 @@
 #define HAVE_SIGACTION	1
 #define HAVE_SETJMP	1
 #define HAVE_NANOSLEEP	1
+#define HAVE_USLEEP     1
 #define HAVE_SYSCONF	1
 #define HAVE_CLOCK_GETTIME 1
 
@@ -115,6 +116,7 @@
 
 /* Enable the stub thread support (src/thread/pthread/\*.c) */
 #define SDL_THREAD_PTHREAD	1
+#define SDL_THREAD_PTHREAD_RECURSIVE_MUTEX	1
 
 /* Enable the unix timer support (src/timer/unix/\*.c) */
 #define SDL_TIMER_UNIX	1

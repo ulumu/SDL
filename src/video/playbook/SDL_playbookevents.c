@@ -1143,6 +1143,11 @@ void handleNavigatorEvent(_THIS, bps_event_t *event)
 	}
 }
 
+static void handleDisplayEvent(screen_event_t event, screen_window_t window)
+{
+	SLOG("Display Event, possible HDMI plug in/out");
+}
+
 void handleScreenEvent(_THIS, bps_event_t *event)
 {
 	int type;
@@ -1168,6 +1173,9 @@ void handleScreenEvent(_THIS, bps_event_t *event)
 
 				//fprintf(stderr, "Property change (property val=%d)\n", val);
 			}
+			break;
+		case SCREEN_EVENT_DISPLAY:
+			handleDisplayEvent(se, window);
 			break;
 		case SCREEN_EVENT_POINTER:
 			handlePointerEvent(se, window);

@@ -95,7 +95,9 @@ void SDL_Delay (Uint32 ms)
 #else
 	int was_error;
 
-#if HAVE_NANOSLEEP
+#if HAVE_USLEEP
+	Uint32 usec;
+#elif HAVE_NANOSLEEP
 	struct timespec elapsed, tv;
 #else
 	struct timeval tv;
@@ -103,7 +105,9 @@ void SDL_Delay (Uint32 ms)
 #endif
 
 	/* Set the timeout interval */
-#if HAVE_NANOSLEEP
+#if HAVE_USLEEP
+	usec = ms * 1000;
+#elif HAVE_NANOSLEEP
 	elapsed.tv_sec = ms/1000;
 	elapsed.tv_nsec = (ms%1000)*1000000;
 #else
@@ -112,7 +116,9 @@ void SDL_Delay (Uint32 ms)
 	do {
 		errno = 0;
 
-#if HAVE_NANOSLEEP
+#if HAVE_USLEEP
+		was_error = usleep(usec);
+#elif HAVE_NANOSLEEP
 		tv.tv_sec = elapsed.tv_sec;
 		tv.tv_nsec = elapsed.tv_nsec;
 		was_error = nanosleep(&tv, &elapsed);
@@ -200,7 +206,7 @@ static int RunTimer(void *unused)
 		if ( SDL_timer_running ) {
 			SDL_ThreadedTimerCheck();
 		}
-		SDL_Delay(1);
+		SDL_Delay(1000);
 	}
 	return(0);
 }
