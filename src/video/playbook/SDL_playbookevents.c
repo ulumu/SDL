@@ -191,6 +191,7 @@ static void handleGameControllerEvent(screen_event_t event)
     GameController_t* controller = NULL;
 	SDL_keysym keysym;
 	int        scancodes[4] = {72, 75, 77, 80}; // From DosBox, keyboard.cpp
+	int        symcodes[4]  = {SDLK_w, SDLK_s, SDLK_d, SDLK_a};
 	int        sdlState = SDL_PRESSED;
 	int        i;
 	int        tmp[16];
@@ -276,7 +277,7 @@ static void handleGameControllerEvent(screen_event_t event)
 			{
 				sdlState = SDL_RELEASED;
 			}
-			keysym.sym      = SDLK_UP + i;
+			keysym.sym      = symcodes[i];
 			keysym.scancode = scancodes[i];
 			SDL_PrivateKeyboard(sdlState, &keysym);
 			controller->dpadPressState[i] = tmp[i];
@@ -291,11 +292,11 @@ static void handleGameControllerEvent(screen_event_t event)
     	//       only map X, Y, A, B, START, RESET for now (Hard coded)
     	if (controller->buttons & SCREEN_X_GAME_BUTTON)
     	{
-    		tmp[0] = SDLK_SPACE;  // Button II
+    		tmp[0] = SDLK_m;  // Button II
     	}
     	if (controller->buttons & SCREEN_Y_GAME_BUTTON)
     	{
-    		tmp[1] = SDLK_LALT;   // Button I
+    		tmp[1] = SDLK_l;   // Button I
     	}
     	if (controller->buttons & SCREEN_MENU1_GAME_BUTTON)
     	{
@@ -303,7 +304,7 @@ static void handleGameControllerEvent(screen_event_t event)
     	}
     	if (controller->buttons & SCREEN_MENU2_GAME_BUTTON)
     	{
-    		tmp[3] = SDLK_BACKSPACE; // MENU 2, "+" button on wiimote
+    		tmp[3] = SDLK_SPACE; // MENU 2, "+" button on wiimote
     	}
     	if (controller->buttons & SCREEN_MENU3_GAME_BUTTON)
     	{
@@ -311,11 +312,11 @@ static void handleGameControllerEvent(screen_event_t event)
     	}
     	if (controller->buttons & (SCREEN_B_GAME_BUTTON | SCREEN_L1_GAME_BUTTON) )
     	{
-    		tmp[5] = SDLK_a;      // Button B of Wiimote, Simulate L
+    		tmp[5] = SDLK_q;      // Button B of Wiimote, Simulate L
     	}
     	if (controller->buttons & (SCREEN_A_GAME_BUTTON | SCREEN_R1_GAME_BUTTON) )
     	{
-    		tmp[6] = SDLK_s;      // Button A of Wiimote, Simulate R
+    		tmp[6] = SDLK_p;      // Button A of Wiimote, Simulate R
     	}
     	// Combo key R+START (in wiimote, "A"+"-"), Backup game state
     	if ( (controller->buttons & (SCREEN_A_GAME_BUTTON | SCREEN_MENU1_GAME_BUTTON)) == (SCREEN_A_GAME_BUTTON | SCREEN_MENU1_GAME_BUTTON) )

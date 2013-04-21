@@ -92,6 +92,7 @@ int handleDPad(int angle, int event)
 	int sdlState = SDL_PRESSED;
 	SDL_keysym keysym;
 	int scancodes[4] = {72, 75, 77, 80}; // From DosBox, keyboard.cpp
+	int symcodes[4] = {SDLK_w, SDLK_s, SDLK_d, SDLK_a};
 	int i;
 	for (i=0; i<4; i++) {
 		if (pressed[i] != tmp[i]) {
@@ -100,7 +101,7 @@ int handleDPad(int angle, int event)
 			} else {
 				sdlState = SDL_RELEASED;
 			}
-			keysym.sym = SDLK_UP + i;
+			keysym.sym = symcodes[i];
 			keysym.scancode = scancodes[i];
 			SDL_PrivateKeyboard(sdlState, &keysym);
 			pressed[i] = tmp[i];
@@ -211,15 +212,27 @@ int handleTouchScreen(int x, int y, int tap, int hold)
 	return TCO_SUCCESS;
 }
 
+const char *control_device_useoverlay  = "sdl-controls.xml";
+const char *control_device_usekeyboard = "sdl-controls-keyboard.xml";
+
 void locateTCOControlFile(_THIS)
 {
-    const char *filename = "sdl-controls.xml";
+    const char *filename = control_device_useoverlay;
     char *homeDir = SDL_getenv("HOME");
     char  fullPath[512];
     FILE *fd = NULL;
 
     // Use SDL multi-mouse controls as default
     _priv->tcoControlsDir = 0;
+
+	// HACK: Handle Q10 device, hide overlay button if Q10 device is detected
+    SLOG("Detected screen resolution: %d x %d", _priv->SDL_modelist[0]->w, _priv->SDL_modelist[0]->h);
+	if (_priv->SDL_modelist[0]->w == _priv->SDL_modelist[0]->h)
+	{
+		SLOG("Device with keyboard detected, hiding Overlay buttons");
+
+		filename = control_device_usekeyboard;
+	}
 
     if (homeDir == NULL)
     {
@@ -243,11 +256,17 @@ void locateTCOControlFile(_THIS)
 
     if (fd)
     {
-        _priv->tcoControlsDir = SDL_malloc(strlen(fullPath) - strlen(filename) + 1);
+        _priv->tcoControlsDir  = SDL_malloc(strlen(fullPath) - strlen(filename) + 1);
+        _priv->tcoControlsFile = SDL_malloc(strlen(filename) + 1);
         if (_priv->tcoControlsDir)
         {
 			strncpy(_priv->tcoControlsDir, fullPath, strlen(fullPath) - strlen(filename));
 			_priv->tcoControlsDir[strlen(fullPath)-strlen(filename)] = '\0';
+        }
+        if (_priv->tcoControlsFile)
+        {
+			strncpy(_priv->tcoControlsFile, filename, strlen(filename));
+			_priv->tcoControlsFile[strlen(filename)] = '\0';
         }
         fclose(fd);
     }
@@ -257,7 +276,7 @@ void locateTCOControlFile(_THIS)
 void initializeOverlay(_THIS, screen_window_t screenWindow)
 {
 	int loaded = 0;
-	const char *filename = "sdl-controls.xml";
+	const char *filename = _priv->tcoControlsFile;
 	struct tco_callbacks callbacks = {
 		handleKey, handleDPad, handleTouch, handleMouseButton, handleTap, handleTouchScreen
 	};
@@ -281,6 +300,8 @@ void initializeOverlay(_THIS, screen_window_t screenWindow)
 
 	// Clean up and set flags
 	SDL_free(_priv->tcoControlsDir);
+	SDL_free(_priv->tcoControlsFile);
+	_priv->tcoControlsFile = NULL;
 	if (loaded) {
 		_priv->tcoControlsDir = 1;
 

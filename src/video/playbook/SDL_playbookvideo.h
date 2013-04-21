@@ -42,6 +42,7 @@ struct SDL_PrivateVideoData {
     void *buffer;
     void *emu_context;
     char *tcoControlsDir;
+    char *tcoControlsFile;
     screen_context_t screenContext;
     screen_event_t screenEvent;
     screen_window_t screenWindow;
