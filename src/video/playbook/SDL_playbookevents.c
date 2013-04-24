@@ -27,6 +27,7 @@
 #include "SDL_keysym.h"
 
 #include "SDL_playbookvideo.h"
+#include "SDL_playbookvideo_c.h"
 #include "SDL_playbookevents_c.h"
 
 #include <bps/bps.h>
@@ -38,7 +39,9 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <unistd.h>
 
+static int bShowConfigWindow;
 static int rc;
 #define SCREEN_API(x, y) rc = x; \
     if (rc) fprintf(stderr, "\n%s in %s: %d", y, __FUNCTION__, errno)
@@ -1049,6 +1052,221 @@ void handleCustomEvent(_THIS, bps_event_t *event)
 	SDL_PrivateSysWMEvent(&wmmsg);
 }
 
+int handleTopMenuKeyFunc(int sym, int mod, int scancode, uint16_t unicode, int event)
+{
+	SLOG("sym: %d, event: %d", sym, event);
+
+	int sdlEvent, sdlEvent2;
+	switch (event)
+	{
+	case TCO_KB_DOWN:
+		sdlEvent = SDL_PRESSED;
+		sdlEvent2= SDL_RELEASED;
+		break;
+	case TCO_KB_UP:
+		sdlEvent = SDL_RELEASED;
+		sdlEvent2= SDL_RELEASED;
+		break;
+	default:
+		return TCO_UNHANDLED;
+	}
+
+	SDL_keysym keysym;
+	keysym.sym = sym;
+	keysym.mod = mod;
+	keysym.scancode = scancode;
+	keysym.unicode = unicode;
+
+	SDL_PrivateKeyboard(sdlEvent, &keysym);
+	SDL_PrivateKeyboard(sdlEvent2, &keysym);
+
+	// Button Config
+	if (sym == SDLK_MINUS)
+	{
+		bShowConfigWindow = 1;
+	}
+	return TCO_SUCCESS;
+}
+
+
+struct tco_callbacks cb = {handleTopMenuKeyFunc, NULL, NULL, NULL, NULL, NULL};
+
+
+void topMenuInit(_THIS)
+{
+	screen_buffer_t screen_buf[2];
+	int             rect[4] = { 0, 0, 480, 100 };
+	int             pos[2];
+    const int       usage = SCREEN_USAGE_NATIVE | SCREEN_USAGE_WRITE | SCREEN_USAGE_READ;
+    tco_context_t   tco_ctx;
+    int             zorder;
+    int             mainZorder;
+	char            groupName[256];
+	int             format = SCREEN_FORMAT_RGBA8888;
+	int             idle_mode = getenv("SCREEN_IDLE_NORMAL") != NULL ? SCREEN_IDLE_MODE_NORMAL : SCREEN_IDLE_MODE_KEEP_AWAKE;
+    int             i, j, rc;
+    int             stride;
+    unsigned char  *pixels;
+
+    bShowConfigWindow = 0;
+
+    screen_get_window_property_iv(_priv->screenWindow, SCREEN_PROPERTY_ZORDER, &mainZorder);
+    SLOG("Main window Zorder: %d", mainZorder);
+
+    /* Setup the window */
+	screen_create_window_type(&_priv->topMenuWindow, _priv->screenContext, SCREEN_CHILD_WINDOW);
+	snprintf(groupName, 256, "SDL-window-%d", getpid());
+	screen_join_window_group(_priv->topMenuWindow, groupName);
+	screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_IDLE_MODE, &idle_mode);
+	PLAYBOOK_SetupStretch(this, _priv->topMenuWindow, rect[2], rect[3]);
+    screen_get_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_POSITION, pos);
+	screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_FORMAT, &format);
+	screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_USAGE,  &usage);
+	screen_create_window_buffers(_priv->topMenuWindow, 1);
+
+	zorder = mainZorder + 2;
+    screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_ZORDER, &zorder);
+    screen_get_window_property_pv(_priv->topMenuWindow, SCREEN_PROPERTY_RENDER_BUFFERS, (void **)screen_buf);
+    screen_get_buffer_property_pv(screen_buf[0], SCREEN_PROPERTY_POINTER, (void **)&pixels);
+    screen_get_buffer_property_iv(screen_buf[0], SCREEN_PROPERTY_STRIDE, &stride);
+
+	// Fill ConfigWindow background color
+	for (i=0; i<rect[3]; i++) {
+		for (j=0; j<rect[2]; j++) {
+			pixels[i*stride+j*4]   = 0xFF;
+			pixels[i*stride+j*4+1] = 0x20;
+			pixels[i*stride+j*4+2] = 0x20;
+			pixels[i*stride+j*4+3] = 0xa0;
+		}
+	}
+
+	while (pos[1] > rect[3])
+	{
+		pos[1]-=10;
+		screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_POSITION, pos);
+	    screen_post_window(_priv->topMenuWindow, screen_buf[0], 1, rect, 0);
+	}
+
+
+    rc = tco_initialize(&tco_ctx, _priv->screenContext, cb);
+    if(rc != TCO_SUCCESS)
+    {
+    	SLOG("TCO top menu: Init error");
+    	return;
+    }
+
+	// Load controls from file
+	char cwd[256];
+	if ((getcwd(cwd, 256) != NULL) && (chdir(_priv->tcoControlsDir) == 0))
+    {
+    	SLOG("loading sdl-topmenu-controls.xml");
+    	rc = tco_loadcontrols(tco_ctx, "sdl-topmenu-controls.xml");
+		chdir(cwd);
+
+    	if (rc != TCO_SUCCESS)
+        {
+        	SLOG("TCO top menu: Load Controls Error");
+        	return;
+        }
+    }
+
+    tco_showlabels(tco_ctx, _priv->topMenuWindow);
+    tco_adjustAlpha(tco_ctx, 0xFF); // opaque button
+
+	bps_event_t *event;
+	int          bEventLoop = 1;
+	int          domain;
+
+	while (bEventLoop)
+	{
+		bps_get_event(&event, 0);
+
+		if (event)
+		{
+			domain = bps_event_get_domain(event);
+			if (domain == navigator_get_domain())
+			{
+				switch (bps_event_get_code(event))
+				{
+					case NAVIGATOR_EXIT:
+						SDL_PrivateQuit(); // We can't stop it from closing anyway
+						break;
+					case NAVIGATOR_WINDOW_STATE:
+					{
+						navigator_window_state_t state = navigator_event_get_window_state(event);
+						switch (state) {
+						case NAVIGATOR_WINDOW_FULLSCREEN:
+							SDL_PrivateAppActive(1, (SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS));
+							break;
+						case NAVIGATOR_WINDOW_THUMBNAIL:
+							SDL_PrivateAppActive(0, (SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS));
+							break;
+						case NAVIGATOR_WINDOW_INVISIBLE:
+							SDL_PrivateAppActive(0, (SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS));
+							break;
+						}
+					}
+						break;
+					case NAVIGATOR_SWIPE_DOWN:
+					{
+						// Destroy menu and return
+						SLOG("Swipe down: Destroying top menu");
+
+						tco_shutdown(tco_ctx);
+
+						screen_destroy_window(_priv->topMenuWindow);
+
+						_priv->topMenuWindow = NULL;
+
+						bEventLoop = 0;
+						break;
+					}
+				}
+			}
+			else if (domain == screen_get_domain())
+			{
+				int            type;
+				screen_event_t se = screen_event_get_event(event);
+				int            rc = screen_get_event_property_iv(se, SCREEN_PROPERTY_TYPE, &type);
+
+				if (rc || type == SCREEN_EVENT_NONE)
+					break;
+
+				switch (type)
+				{
+					case SCREEN_EVENT_MTOUCH_TOUCH:
+					case SCREEN_EVENT_MTOUCH_MOVE:
+					case SCREEN_EVENT_MTOUCH_RELEASE:
+						if (TCO_SUCCESS == tco_touch(tco_ctx, se))
+						{
+							// Destroy menu and return
+							SLOG("Top Menu button selected: Destroying top menu");
+
+							tco_shutdown(tco_ctx);
+
+							screen_destroy_window(_priv->topMenuWindow);
+
+							_priv->topMenuWindow = NULL;
+
+							bEventLoop = 0;
+						}
+						break;
+				}
+
+			}
+		}
+
+		if (_priv->topMenuWindow)
+		{
+			screen_post_window(_priv->topMenuWindow, screen_buf[0], 1, rect, 0);
+		}
+	}
+
+    zorder = mainZorder;
+    screen_set_window_property_iv(_priv->screenWindow, SCREEN_PROPERTY_ZORDER, &zorder);
+}
+
+
 void handleNavigatorEvent(_THIS, bps_event_t *event)
 {
 	int rc, angle;
@@ -1080,22 +1298,14 @@ void handleNavigatorEvent(_THIS, bps_event_t *event)
 	}
 		break;
 	case NAVIGATOR_SWIPE_DOWN:
-		if (_priv->tcoControlsDir) {
+	{
+		topMenuInit(this);
+
+		if (bShowConfigWindow) {
 			tco_swipedown(_priv->emu_context, _priv->screenWindow);
-		} else {
-			SDL_Event sdl_event;
-			SDL_UserEvent userevent;
-
-			userevent.type = SDL_USEREVENT;
-			userevent.code = 0;
-			userevent.data1 = NULL;
-			userevent.data2 = NULL;
-			sdl_event.type = SDL_USEREVENT;
-			sdl_event.user = userevent;
-
-			SDL_PushEvent(&sdl_event);
 		}
 		break;
+	}
 	case NAVIGATOR_SWIPE_START:
 		//fprintf(stderr, "Swipe start\n");
 		break;

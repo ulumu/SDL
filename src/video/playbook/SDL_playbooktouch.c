@@ -299,12 +299,9 @@ void initializeOverlay(_THIS, screen_window_t screenWindow)
 	}
 
 	// Clean up and set flags
-	SDL_free(_priv->tcoControlsDir);
 	SDL_free(_priv->tcoControlsFile);
 	_priv->tcoControlsFile = NULL;
 	if (loaded) {
-		_priv->tcoControlsDir = 1;
-
 		// hideTco is set within SDL_SYS_JoystickInit
 		// if a joystick is detected, then there is no need to display the overlay Label
 		if (_priv->hideTco == 0)
@@ -313,6 +310,7 @@ void initializeOverlay(_THIS, screen_window_t screenWindow)
 			tco_hidelabels(_priv->emu_context, screenWindow);
 	} else {
 		tco_shutdown(&_priv->emu_context);
+		SDL_free(_priv->tcoControlsDir);
 		_priv->tcoControlsDir = 0;
 	}
 }
