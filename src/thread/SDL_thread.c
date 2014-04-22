@@ -216,16 +216,15 @@ DECLSPEC SDL_Thread * SDLCALL SDL_CreateThread(int (SDLCALL *fn)(void *), void *
 	int ret;
 
 	/* Allocate memory for the thread info structure */
-	thread = (SDL_Thread *)SDL_malloc(sizeof(*thread));
+	thread = (SDL_Thread *)SDL_calloc(1, sizeof(*thread));
 	if ( thread == NULL ) {
 		SDL_OutOfMemory();
 		return(NULL);
 	}
-	SDL_memset(thread, 0, (sizeof *thread));
 	thread->status = -1;
 
 	/* Set up the arguments for the thread */
-	args = (thread_args *)SDL_malloc(sizeof(*args));
+	args = (thread_args *)SDL_calloc(1, sizeof(*args));
 	if ( args == NULL ) {
 		SDL_OutOfMemory();
 		SDL_free(thread);

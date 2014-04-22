@@ -42,7 +42,7 @@ struct SDL_semaphore {
 /* Create a semaphore, initialized with value */
 SDL_sem *SDL_CreateSemaphore(Uint32 initial_value)
 {
-	SDL_sem *sem = (SDL_sem *) SDL_malloc(sizeof(SDL_sem));
+	SDL_sem *sem = (SDL_sem *) SDL_calloc(1, sizeof(SDL_sem));
 	if ( sem ) {
 		if ( sem_init(&sem->sem, 0, initial_value) < 0 ) {
 			SDL_SetError("sem_init() failed");

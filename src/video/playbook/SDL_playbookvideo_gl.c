@@ -57,31 +57,66 @@ static void egl_perror(const char *msg)
     fprintf(stderr, "%s: %s\n", msg, errmsg[eglGetError() - EGL_SUCCESS]);
 }
 
+static EGLint attributes_rgba8888[] = {
+	EGL_RED_SIZE, 8,
+	EGL_GREEN_SIZE, 8,
+	EGL_BLUE_SIZE, 8,
+	EGL_ALPHA_SIZE, 8,
+	EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+	EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+#ifndef __X86__ // Simulator not supporting these options
+	EGL_SAMPLE_BUFFERS, 1,
+	EGL_SAMPLES, 4,
+#endif
+	EGL_NONE
+};
+
+static EGLint attributes_rgb565[] = {
+	EGL_RED_SIZE,   5,
+	EGL_GREEN_SIZE, 6,
+	EGL_BLUE_SIZE,  5,
+	EGL_ALPHA_SIZE, 0,
+	EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+	EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+#ifndef __X86__ // Simulator not supporting these options
+	EGL_SAMPLE_BUFFERS, 1,
+	EGL_SAMPLES,    2,
+#endif
+	EGL_NONE
+};
+
 SDL_Surface *PLAYBOOK_SetVideoMode_GL(_THIS, SDL_Surface *current,
 				int width, int height, int bpp, Uint32 flags)
 {
 	int rc;
-	EGLint attributes[] = {
-		EGL_RED_SIZE, 8,
-		EGL_GREEN_SIZE, 8,
-		EGL_BLUE_SIZE, 8,
-		EGL_ALPHA_SIZE, 8,
-		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-		EGL_SAMPLE_BUFFERS, 1,
-		EGL_SAMPLES, 4,
-		EGL_NONE
-	};
+	EGLint *attributes;
 	EGLint contextAttributes[3] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
 	EGLConfig configs[1];
 	EGLint configCount;
 	screen_window_t screenWindow;
-	int format = SCREEN_FORMAT_RGBX8888;
+	int format = SCREEN_FORMAT_RGB565;
 	int usage = SCREEN_USAGE_OPENGL_ES2;
 	EGLint eglSurfaceAttributes[3] = { EGL_RENDER_BUFFER, EGL_BACK_BUFFER, EGL_NONE };
 	int angle = 0;
 
-	SLOG("GL2 Video setup, WIDTH:%d, HEIGHT:%d", width, height);
+	SLOG("GL2 Video setup, WIDTH:%d, HEIGHT:%d, bpp=%d", width, height, bpp);
+
+	switch (bpp)
+	{
+	case 16:
+		attributes = attributes_rgb565;
+		format     = SCREEN_FORMAT_RGB565;
+		break;
+
+	case 32:
+		attributes = attributes_rgba8888;
+		format     = SCREEN_FORMAT_RGBX8888;
+		break;
+
+	default:
+		SLOG("Unsupported bpp (%d)!!", bpp);
+		goto error1;
+	}
 
 	if (!_priv->screenWindow) {
 
@@ -111,8 +146,8 @@ SDL_Surface *PLAYBOOK_SetVideoMode_GL(_THIS, SDL_Surface *current,
 			eglTerminate(_priv->eglInfo.eglDisplay);
 			return NULL;
 		} else if (configCount <= 0)	{
-			fprintf(stderr, "No matching configurations found.");
-			goto error2;
+			SLOG("No matching configurations found.");
+//			goto error2;
 		}
 
 		_priv->eglInfo.eglContext = eglCreateContext(_priv->eglInfo.eglDisplay, configs[0], EGL_NO_CONTEXT, contextAttributes);
@@ -126,7 +161,7 @@ SDL_Surface *PLAYBOOK_SetVideoMode_GL(_THIS, SDL_Surface *current,
 			goto error3;
 		}
 
-		rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height);
+		rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height, flags);
 		if (rc) {
 			goto error4;
 		}
@@ -168,15 +203,60 @@ SDL_Surface *PLAYBOOK_SetVideoMode_GL(_THIS, SDL_Surface *current,
 
 		_priv->screenWindow = screenWindow;
 	}
+	else
+	{
+		tco_shutdown(_priv->emu_context);
+
+		// Just resize for now
+		rc = PLAYBOOK_SetupStretch(this, _priv->screenWindow, width, height, flags);
+		if (rc) {
+			goto error4;
+		}
+
+		if (_priv->tcoControlsDir) {
+			initializeOverlay(this, _priv->screenWindow);
+		}
+	}
 
 	current->flags &= ~SDL_RESIZABLE;
 	current->flags |= SDL_FULLSCREEN;
 	current->flags |= SDL_HWSURFACE;
 	current->flags |= SDL_OPENGL;
-	current->w = width;
-	current->h = height;
-	current->pitch = width;
+	current->w      = width;
+	current->h      = height;
+	current->pitch  = width;
 	current->pixels = 0;
+
+	switch(bpp)
+	{
+	case 16:
+		// RGB565 format setup
+		current->format->BitsPerPixel  = 16;
+		current->format->BytesPerPixel = 2;
+		current->format->Bshift        = 0;
+		current->format->Gshift        = 5;
+		current->format->Rshift        = 11;
+		current->format->Bmask         = 0x1F;
+		current->format->Gmask         = 0x7E0;
+		current->format->Rmask         = 0xF800;
+		break;
+
+	case 32:
+		// RGB565 format setup
+		current->format->BitsPerPixel  = 32;
+		current->format->BytesPerPixel = 4;
+		current->format->Bshift        = 0;
+		current->format->Gshift        = 8;
+		current->format->Rshift        = 16;
+		current->format->Ashift        = 24;
+		current->format->Bmask         = 0xFF;
+		current->format->Gmask         = 0xFF00;
+		current->format->Rmask         = 0xFF0000;
+		current->format->Amask         = 0xFF000000;
+		break;
+	}
+
+
 	_priv->surface = current;
 	return current;
 

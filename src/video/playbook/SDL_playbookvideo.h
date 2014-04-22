@@ -27,7 +27,13 @@
 #include "../SDL_sysvideo.h"
 #include <screen/screen.h>
 
-#define SLOG(fmt, ...) fprintf(stderr, "[SDL-LOG][%s:%d]:"fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__);
+//#ifdef __QNXNTO__
+//#include <sys/slog.h>
+//#include <sys/slogcodes.h>
+//#define SLOG(fmt, ...) slogf(_SLOG_SETCODE(_SLOGC_TEST+328, 0), _SLOG_DEBUG1, "[SDL-LOG][%s:%d]:"fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__);
+//#else
+//#define SLOG(fmt, ...) fprintf(stderr, "[SDL-LOG][%s:%d]:"fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__);
+//#endif
 
 /* Hidden "this" pointer for the video functions */
 #define _THIS	SDL_VideoDevice *this

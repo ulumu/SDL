@@ -218,6 +218,8 @@ int SDL_SoftStretch(SDL_Surface *src, SDL_Rect *srcrect,
 #endif /* USE_ASM_STRETCH */
 	const int bpp = dst->format->BytesPerPixel;
 
+	SLOG("SDL_SoftStretch");
+
 	if ( src->format->BitsPerPixel != dst->format->BitsPerPixel ) {
 		SDL_SetError("Only works with same format surfaces");
 		return(-1);
@@ -225,6 +227,7 @@ int SDL_SoftStretch(SDL_Surface *src, SDL_Rect *srcrect,
 
 	/* Verify the blit rectangles */
 	if ( srcrect ) {
+		SLOG("srcrect:[%d %d %d %d]", srcrect->x, srcrect->y, srcrect->w, srcrect->h);
 		if ( (srcrect->x < 0) || (srcrect->y < 0) ||
 		     ((srcrect->x+srcrect->w) > src->w) ||
 		     ((srcrect->y+srcrect->h) > src->h) ) {
@@ -239,6 +242,7 @@ int SDL_SoftStretch(SDL_Surface *src, SDL_Rect *srcrect,
 		srcrect = &full_src;
 	}
 	if ( dstrect ) {
+		SLOG("dstrect:[%d %d %d %d]", dstrect->x, dstrect->y, dstrect->w, dstrect->h);
 		if ( (dstrect->x < 0) || (dstrect->y < 0) ||
 		     ((dstrect->x+dstrect->w) > dst->w) ||
 		     ((dstrect->y+dstrect->h) > dst->h) ) {

@@ -1210,7 +1210,7 @@ static int SetPalette_physical(SDL_Surface *screen,
 					SDL_Palette *pp = video->physpal;
 					if(!pp)
 						pp = screen->format->palette;
-					video->gammacols = SDL_malloc(pp->ncolors
+					video->gammacols = SDL_calloc(1, pp->ncolors
 							  * sizeof(SDL_Color));
 					SDL_ApplyGamma(video->gamma,
 						       pp->colors,
@@ -1305,14 +1305,14 @@ int SDL_SetPalette(SDL_Surface *screen, int which,
 		if ( !video->physpal && !(which & SDL_LOGPAL) ) {
 			/* Lazy physical palette allocation */
 			int size;
-			SDL_Palette *pp = SDL_malloc(sizeof(*pp));
+			SDL_Palette *pp = SDL_calloc(1, sizeof(*pp));
 			if ( !pp ) {
 				return 0;
 			}
 			video->physpal = pp;
 			pp->ncolors = pal->ncolors;
 			size = pp->ncolors * sizeof(SDL_Color);
-			pp->colors = SDL_malloc(size);
+			pp->colors = SDL_calloc(1, size);
 			if ( !pp->colors ) {
 				return 0;
 			}
@@ -1794,7 +1794,7 @@ void SDL_WM_SetIcon (SDL_Surface *icon, Uint8 *mask)
 		if ( mask == NULL ) {
 			int mask_len = icon->h*(icon->w+7)/8;
 			int flags = 0;
-			mask = (Uint8 *)SDL_malloc(mask_len);
+			mask = (Uint8 *)SDL_calloc(1, mask_len);
 			if ( mask == NULL ) {
 				return;
 			}

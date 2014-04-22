@@ -49,11 +49,10 @@ int SDL_JoystickInit(void)
 	status = SDL_SYS_JoystickInit();
 	if ( status >= 0 ) {
 		arraylen = (status+1)*sizeof(*SDL_joysticks);
-		SDL_joysticks = (SDL_Joystick **)SDL_malloc(arraylen);
+		SDL_joysticks = (SDL_Joystick **)SDL_calloc(1, arraylen);
 		if ( SDL_joysticks == NULL ) {
 			SDL_numjoysticks = 0;
 		} else {
-			SDL_memset(SDL_joysticks, 0, arraylen);
 			SDL_numjoysticks = status;
 		}
 		status = 0;
@@ -67,6 +66,7 @@ int SDL_JoystickInit(void)
  */
 int SDL_NumJoysticks(void)
 {
+	SLOG("SDL_numjoysticks = %d", SDL_numjoysticks);
 	return SDL_numjoysticks;
 }
 
@@ -111,12 +111,11 @@ SDL_Joystick *SDL_JoystickOpen(int device_index)
 	}
 
 	/* Create and initialize the joystick */
-	joystick = (SDL_Joystick *)SDL_malloc((sizeof *joystick));
+	joystick = (SDL_Joystick *)SDL_calloc(1, (sizeof *joystick));
 	if ( !joystick ) {
 		return(NULL);
 	}
 
-	SDL_memset(joystick, 0, (sizeof *joystick));
 	joystick->index = device_index;
 	if ( SDL_SYS_JoystickOpen(joystick) < 0 ) {
 		SDL_free(joystick);
@@ -124,20 +123,16 @@ SDL_Joystick *SDL_JoystickOpen(int device_index)
 	}
 
 	if ( joystick->naxes > 0 ) {
-		joystick->axes = (Sint16 *)SDL_malloc
-			(joystick->naxes*sizeof(Sint16));
+		joystick->axes = (Sint16 *)SDL_calloc(1, joystick->naxes*sizeof(Sint16));
 	}
 	if ( joystick->nhats > 0 ) {
-		joystick->hats = (Uint8 *)SDL_malloc
-			(joystick->nhats*sizeof(Uint8));
+		joystick->hats = (Uint8 *)SDL_calloc(1, joystick->nhats*sizeof(Uint8));
 	}
 	if ( joystick->nballs > 0 ) {
-		joystick->balls = (struct balldelta *)SDL_malloc
-			(joystick->nballs*sizeof(*joystick->balls));
+		joystick->balls = (struct balldelta *)SDL_calloc(1, joystick->nballs*sizeof(*joystick->balls));
 	}
 	if ( joystick->nbuttons > 0 ) {
-		joystick->buttons = (Uint8 *)SDL_malloc
-			(joystick->nbuttons*sizeof(Uint8));
+		joystick->buttons = (Uint8 *)SDL_calloc(1, joystick->nbuttons*sizeof(Uint8));
 	}
 	if ( ((joystick->naxes > 0) && !joystick->axes)
 	  || ((joystick->nhats > 0) && !joystick->hats)
@@ -146,23 +141,6 @@ SDL_Joystick *SDL_JoystickOpen(int device_index)
 		SDL_OutOfMemory();
 		SDL_JoystickClose(joystick);
 		return(NULL);
-	}
-
-	if ( joystick->axes ) {
-		SDL_memset(joystick->axes, 0,
-			joystick->naxes*sizeof(Sint16));
-	}
-	if ( joystick->hats ) {
-		SDL_memset(joystick->hats, 0,
-			joystick->nhats*sizeof(Uint8));
-	}
-	if ( joystick->balls ) {
-		SDL_memset(joystick->balls, 0,
-			joystick->nballs*sizeof(*joystick->balls));
-	}
-	if ( joystick->buttons ) {
-		SDL_memset(joystick->buttons, 0,
-			joystick->nbuttons*sizeof(Uint8));
 	}
 
 	/* Add joystick to list */

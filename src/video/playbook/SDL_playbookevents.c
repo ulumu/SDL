@@ -50,6 +50,8 @@ static int rc;
 static SDL_keysym Playbook_Keycodes[256];
 static SDLKey *Playbook_specialsyms;
 
+extern int  SDL_JoystickInit(void);
+
 //#define TOUCHPAD_SIMULATE 1 // Still experimental
 #ifdef TOUCHPAD_SIMULATE
 struct TouchState {
@@ -72,7 +74,7 @@ struct TouchEvent {
 };
 static struct TouchEvent moveEvent;
 
-
+#if 0
 // Structure representing a game controller.
 typedef struct GameController_t {
     // Static device info.
@@ -97,6 +99,10 @@ typedef struct GameController_t {
 
     int  dpadPressState[4];
     int  buttonPressState[24];
+
+    bool bReMap;
+
+    SDL_Joystick *joypad;
 } GameController_t;
 
 // Controller information.
@@ -147,9 +153,19 @@ static void loadController(GameController_t* controller)
 
     if (controller->type == SCREEN_EVENT_GAMEPAD) {
         sprintf(controller->deviceString, "Gamepad device ID: %s", controller->id);
+        SLOG("[Gamepad Detected]: %s\n", controller->deviceString);
+
+        if (0 == strcmp("0-0000-0000-1.27", controller->id))
+        {
+        	controller->bReMap = true;
+        	SLOG("Incompatable gamepad detected, Gamepad remapped is used!!");
+        }
     } else {
         sprintf(controller->deviceString, "Joystick device: %s", controller->id);
+        SLOG("[Joystick Detected]: %s\n", controller->deviceString);
     }
+
+    controller->joypad = SDL_JoystickOpen(0);
 }
 
 static void discoverControllers(screen_context_t screenCtx)
@@ -171,6 +187,7 @@ static void discoverControllers(screen_context_t screenCtx)
         if (!rc && (type == SCREEN_EVENT_GAMEPAD || type == SCREEN_EVENT_JOYSTICK)) {
             // Assign this device to control Player 1 or Player 2.
         	GameController_t* controller = &gGameController[controllerIndex];
+        	memset(controller, 0, sizeof(GameController_t));
             controller->handle = devices[i];
             loadController(controller);
 
@@ -223,18 +240,18 @@ static void handleGameControllerEvent(screen_event_t event)
         SCREEN_API(screen_get_event_property_iv(event, SCREEN_PROPERTY_ANALOG1, controller->analog1), "SCREEN_PROPERTY_ANALOG1");
     }
 
-//    enum {
+//    enum {                                                   iPega
 //    	SCREEN_A_GAME_BUTTON                   = (1 << 0),
-//    	SCREEN_B_GAME_BUTTON                   = (1 << 1),
-//    	SCREEN_C_GAME_BUTTON                   = (1 << 2),
-//    	SCREEN_X_GAME_BUTTON                   = (1 << 3),
-//    	SCREEN_Y_GAME_BUTTON                   = (1 << 4),
-//    	SCREEN_Z_GAME_BUTTON                   = (1 << 5),
-//    	SCREEN_MENU1_GAME_BUTTON               = (1 << 6),
+//    	SCREEN_B_GAME_BUTTON                   = (1 << 1),      X
+//    	SCREEN_C_GAME_BUTTON                   = (1 << 2),      A
+//    	SCREEN_X_GAME_BUTTON                   = (1 << 3),      B
+//    	SCREEN_Y_GAME_BUTTON                   = (1 << 4),      Y
+//    	SCREEN_Z_GAME_BUTTON                   = (1 << 5),      L1
+//    	SCREEN_MENU1_GAME_BUTTON               = (1 << 6),      R1
 //    	SCREEN_MENU2_GAME_BUTTON               = (1 << 7),
 //    	SCREEN_MENU3_GAME_BUTTON               = (1 << 8),
-//    	SCREEN_MENU4_GAME_BUTTON               = (1 << 9),
-//    	SCREEN_L1_GAME_BUTTON                  = (1 << 10),
+//    	SCREEN_MENU4_GAME_BUTTON               = (1 << 9),      Select
+//    	SCREEN_L1_GAME_BUTTON                  = (1 << 10),     Start
 //    	SCREEN_L2_GAME_BUTTON                  = (1 << 11),
 //    	SCREEN_L3_GAME_BUTTON                  = (1 << 12),
 //    	SCREEN_R1_GAME_BUTTON                  = (1 << 13),
@@ -291,6 +308,39 @@ static void handleGameControllerEvent(screen_event_t event)
 	memset(tmp, 0, sizeof(tmp));
     if (controller->buttons & (GAME_BUTTON_MASK | GAME_MENU_MASK) )
     {
+    	if (controller->bReMap == true)
+    	{
+    		//    enum {                                                   iPega
+    		//    	SCREEN_A_GAME_BUTTON                   = (1 << 0),
+    		//    	SCREEN_B_GAME_BUTTON                   = (1 << 1),      X
+    		//    	SCREEN_C_GAME_BUTTON                   = (1 << 2),      A
+    		//    	SCREEN_X_GAME_BUTTON                   = (1 << 3),      B
+    		//    	SCREEN_Y_GAME_BUTTON                   = (1 << 4),      Y
+    		//    	SCREEN_Z_GAME_BUTTON                   = (1 << 5),      L1
+    		//    	SCREEN_MENU1_GAME_BUTTON               = (1 << 6),      R1
+    		//    	SCREEN_MENU2_GAME_BUTTON               = (1 << 7),
+    		//    	SCREEN_MENU3_GAME_BUTTON               = (1 << 8),
+    		//    	SCREEN_MENU4_GAME_BUTTON               = (1 << 9),      Select
+    		//    	SCREEN_L1_GAME_BUTTON                  = (1 << 10),     Start
+    		//    	SCREEN_L2_GAME_BUTTON                  = (1 << 11),
+    		//    	SCREEN_L3_GAME_BUTTON                  = (1 << 12),
+    		//    	SCREEN_R1_GAME_BUTTON                  = (1 << 13),
+    		//    	SCREEN_R2_GAME_BUTTON                  = (1 << 14),
+    		//    	SCREEN_R3_GAME_BUTTON                  = (1 << 15),
+    		int buttons = 0;
+
+    		if (controller->buttons & SCREEN_B_GAME_BUTTON)      buttons |= SCREEN_X_GAME_BUTTON;
+    		if (controller->buttons & SCREEN_C_GAME_BUTTON)      buttons |= SCREEN_Y_GAME_BUTTON;
+    		if (controller->buttons & SCREEN_Y_GAME_BUTTON)      buttons |= SCREEN_Y_GAME_BUTTON;
+    		if (controller->buttons & SCREEN_X_GAME_BUTTON)      buttons |= SCREEN_X_GAME_BUTTON;
+    		if (controller->buttons & SCREEN_Z_GAME_BUTTON)      buttons |= SCREEN_L1_GAME_BUTTON;
+    		if (controller->buttons & SCREEN_MENU1_GAME_BUTTON)  buttons |= SCREEN_R1_GAME_BUTTON;
+    		if (controller->buttons & SCREEN_MENU4_GAME_BUTTON)  buttons |= SCREEN_MENU1_GAME_BUTTON;
+    		if (controller->buttons & SCREEN_L1_GAME_BUTTON)     buttons |= SCREEN_MENU2_GAME_BUTTON;
+
+    		controller->buttons = buttons;
+    	}
+
         // TODO: need to support generic Button to SDL control mapping from sdl-control.xml
     	//       only map X, Y, A, B, START, RESET for now (Hard coded)
     	if (controller->buttons & SCREEN_X_GAME_BUTTON)
@@ -333,7 +383,6 @@ static void handleGameControllerEvent(screen_event_t event)
     		tmp[3] = tmp[6] = 0;  // Clear original button state
     		tmp[8] = SDLK_F9;     // Restore game state
     	}
-
     }
 
 	for (i=0; i<9; i++)
@@ -395,6 +444,7 @@ static void handleDeviceEvent(screen_event_t event)
         }
     }
 }
+#endif
 
 static void handlePointerEvent(screen_event_t event, screen_window_t window)
 {
@@ -1092,10 +1142,13 @@ int handleTopMenuKeyFunc(int sym, int mod, int scancode, uint16_t unicode, int e
 struct tco_callbacks cb = {handleTopMenuKeyFunc, NULL, NULL, NULL, NULL, NULL};
 
 
+#define TOP_MENU_WIDTH  480
+#define TOP_MENU_HEIGHT 150
+
 void topMenuInit(_THIS)
 {
 	screen_buffer_t screen_buf[2];
-	int             rect[4] = { 0, 0, 480, 100 };
+	int             rect[4] = { 0, 0, TOP_MENU_WIDTH, TOP_MENU_HEIGHT };
 	int             pos[2];
     const int       usage = SCREEN_USAGE_NATIVE | SCREEN_USAGE_WRITE | SCREEN_USAGE_READ;
     tco_context_t   tco_ctx;
@@ -1118,7 +1171,7 @@ void topMenuInit(_THIS)
 	snprintf(groupName, 256, "SDL-window-%d", getpid());
 	screen_join_window_group(_priv->topMenuWindow, groupName);
 	screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_IDLE_MODE, &idle_mode);
-	PLAYBOOK_SetupStretch(this, _priv->topMenuWindow, rect[2], rect[3]);
+	PLAYBOOK_SetupStretch(this, _priv->topMenuWindow, rect[2], rect[3], SDL_RESIZABLE);
     screen_get_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_POSITION, pos);
 	screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_FORMAT, &format);
 	screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_USAGE,  &usage);
@@ -1131,23 +1184,26 @@ void topMenuInit(_THIS)
     screen_get_buffer_property_iv(screen_buf[0], SCREEN_PROPERTY_STRIDE, &stride);
 
 	// Fill ConfigWindow background color
+    unsigned char blue=0xa0;
 	for (i=0; i<rect[3]; i++) {
 		for (j=0; j<rect[2]; j++) {
 			pixels[i*stride+j*4]   = 0xFF;
 			pixels[i*stride+j*4+1] = 0x20;
 			pixels[i*stride+j*4+2] = 0x20;
-			pixels[i*stride+j*4+3] = 0xa0;
+			pixels[i*stride+j*4+3] = blue;
 		}
+		blue -= 1;
 	}
 
+	// show animation of the Top menu, slide up from middle of screen
 	while (pos[1] > rect[3])
 	{
-		pos[1]-=10;
+		pos[1]-=3;
 		screen_set_window_property_iv(_priv->topMenuWindow, SCREEN_PROPERTY_POSITION, pos);
 	    screen_post_window(_priv->topMenuWindow, screen_buf[0], 1, rect, 0);
 	}
 
-
+	// Init Touch overlay module
     rc = tco_initialize(&tco_ctx, _priv->screenContext, cb);
     if(rc != TCO_SUCCESS)
     {
@@ -1155,7 +1211,7 @@ void topMenuInit(_THIS)
     	return;
     }
 
-	// Load controls from file
+	// Load Button controls from file
 	char cwd[256];
 	if ((getcwd(cwd, 256) != NULL) && (chdir(_priv->tcoControlsDir) == 0))
     {
@@ -1177,6 +1233,7 @@ void topMenuInit(_THIS)
 	int          bEventLoop = 1;
 	int          domain;
 
+	// Wait for touch event
 	while (bEventLoop)
 	{
 		bps_get_event(&event, 0);
@@ -1405,12 +1462,19 @@ void handleScreenEvent(_THIS, bps_event_t *event)
 			break;
 
 		case SCREEN_EVENT_DEVICE:
-			handleDeviceEvent(se);
+//			handleDeviceEvent(se);
+			SDL_JoystickInit();
+
+			// enable SYSTEM specific event reporting
+			SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+
+			handleCustomEvent(this, event);
 			break;
 
         case SCREEN_EVENT_GAMEPAD:
         case SCREEN_EVENT_JOYSTICK:
-        	handleGameControllerEvent(se);
+//        	handleGameControllerEvent(se);
+        	SDL_JoystickUpdate();
         	break;
 	}
 }
@@ -1432,7 +1496,7 @@ PLAYBOOK_PumpEvents(_THIS)
 		}
 
 		// post SDL_SYSWMEVENT event containing the bps event pointer
-		handleCustomEvent(this, event);
+//		handleCustomEvent(this, event);
 
 		bps_get_event(&event, 0);
 	}
@@ -1493,7 +1557,7 @@ PLAYBOOK_PumpEvents(_THIS)
 
 void PLAYBOOK_InitOSKeymap(_THIS)
 {
-	discoverControllers(_priv->screenContext);
+//	discoverControllers(_priv->screenContext);
 
 	{
 		// We match perfectly from 32 to 64

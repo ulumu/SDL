@@ -75,7 +75,7 @@ SDL_Surface * SDL_CreateRGBSurface (Uint32 flags,
 	}
 
 	/* Allocate the surface */
-	surface = (SDL_Surface *)SDL_malloc(sizeof(*surface));
+	surface = (SDL_Surface *)SDL_calloc(1, sizeof(*surface));
 	if ( surface == NULL ) {
 		SDL_OutOfMemory();
 		return(NULL);
@@ -123,14 +123,12 @@ SDL_Surface * SDL_CreateRGBSurface (Uint32 flags,
 	if ( ((flags&SDL_HWSURFACE) == SDL_SWSURFACE) || 
 				(video->AllocHWSurface(this, surface) < 0) ) {
 		if ( surface->w && surface->h ) {
-			surface->pixels = SDL_malloc(surface->h*surface->pitch);
+			surface->pixels = SDL_calloc(1, surface->h*surface->pitch);
 			if ( surface->pixels == NULL ) {
 				SDL_FreeSurface(surface);
 				SDL_OutOfMemory();
 				return(NULL);
 			}
-			/* This is important for bitmaps */
-			SDL_memset(surface->pixels, 0, surface->h*surface->pitch);
 		}
 	}
 

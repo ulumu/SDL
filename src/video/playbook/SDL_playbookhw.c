@@ -22,7 +22,7 @@ int PLAYBOOK_AllocHWSurface(_THIS, SDL_Surface *surface)
 		return -1;
 	}
 
-	surface->hwdata = SDL_malloc(sizeof(struct private_hwdata));
+	surface->hwdata = SDL_calloc(1, sizeof(struct private_hwdata));
 	if (surface->hwdata == NULL) {
 		SDL_OutOfMemory();
 		return -1;

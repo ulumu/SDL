@@ -41,12 +41,11 @@ SDL_PixelFormat *SDL_AllocFormat(int bpp,
 	Uint32 mask;
 
 	/* Allocate an empty pixel format structure */
-	format = SDL_malloc(sizeof(*format));
+	format = SDL_calloc(1, sizeof(*format));
 	if ( format == NULL ) {
 		SDL_OutOfMemory();
 		return(NULL);
 	}
-	SDL_memset(format, 0, sizeof(*format));
 	format->alpha = SDL_ALPHA_OPAQUE;
 
 	/* Set up the format */
@@ -123,14 +122,14 @@ SDL_PixelFormat *SDL_AllocFormat(int bpp,
 #ifdef DEBUG_PALETTE
 		fprintf(stderr,"bpp=%d ncolors=%d\n",bpp,ncolors);
 #endif
-		format->palette = (SDL_Palette *)SDL_malloc(sizeof(SDL_Palette));
+		format->palette = (SDL_Palette *)SDL_calloc(1, sizeof(SDL_Palette));
 		if ( format->palette == NULL ) {
 			SDL_FreeFormat(format);
 			SDL_OutOfMemory();
 			return(NULL);
 		}
 		(format->palette)->ncolors = ncolors;
-		(format->palette)->colors = (SDL_Color *)SDL_malloc(
+		(format->palette)->colors = (SDL_Color *)SDL_calloc(1,
 				(format->palette)->ncolors*sizeof(SDL_Color));
 		if ( (format->palette)->colors == NULL ) {
 			SDL_FreeFormat(format);
@@ -449,7 +448,7 @@ static Uint8 *Map1to1(SDL_Palette *src, SDL_Palette *dst, int *identical)
 		}
 		*identical = 0;
 	}
-	map = (Uint8 *)SDL_malloc(src->ncolors);
+	map = (Uint8 *)SDL_calloc(1, src->ncolors);
 	if ( map == NULL ) {
 		SDL_OutOfMemory();
 		return(NULL);
@@ -470,7 +469,7 @@ static Uint8 *Map1toN(SDL_PixelFormat *src, SDL_PixelFormat *dst)
 	SDL_Palette *pal = src->palette;
 
 	bpp = ((dst->BytesPerPixel == 3) ? 4 : dst->BytesPerPixel);
-	map = (Uint8 *)SDL_malloc(pal->ncolors*bpp);
+	map = (Uint8 *)SDL_calloc(1, pal->ncolors*bpp);
 	if ( map == NULL ) {
 		SDL_OutOfMemory();
 		return(NULL);
@@ -508,21 +507,19 @@ SDL_BlitMap *SDL_AllocBlitMap(void)
 	SDL_BlitMap *map;
 
 	/* Allocate the empty map */
-	map = (SDL_BlitMap *)SDL_malloc(sizeof(*map));
+	map = (SDL_BlitMap *)SDL_calloc(1, sizeof(*map));
 	if ( map == NULL ) {
 		SDL_OutOfMemory();
 		return(NULL);
 	}
-	SDL_memset(map, 0, sizeof(*map));
 
 	/* Allocate the software blit data */
-	map->sw_data = (struct private_swaccel *)SDL_malloc(sizeof(*map->sw_data));
+	map->sw_data = (struct private_swaccel *)SDL_calloc(1, sizeof(*map->sw_data));
 	if ( map->sw_data == NULL ) {
 		SDL_FreeBlitMap(map);
 		SDL_OutOfMemory();
 		return(NULL);
 	}
-	SDL_memset(map->sw_data, 0, sizeof(*map->sw_data));
 
 	/* It's ready to go */
 	return(map);

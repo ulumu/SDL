@@ -70,6 +70,28 @@ typedef struct GameController_t {
 #define MAX_CONTROLLERS  2
 static GameController_t gGameController[MAX_CONTROLLERS];
 
+#define KEY_A     (0)
+#define KEY_B     (1)
+#define KEY_C     (2)
+#define KEY_X     (3)
+#define KEY_Y     (4)
+#define KEY_Z     (5)
+#define KEY_MENU1 (6)
+#define KEY_MENU2 (7)
+#define KEY_MENU3 (8)
+#define KEY_MENU4 (9)
+#define KEY_L1    (10)
+#define KEY_L2    (11)
+#define KEY_L3    (12)
+#define KEY_R1    (13)
+#define KEY_R2    (14)
+#define KEY_R3    (15)
+#define KEY_UP    (16)
+#define KEY_DOWN  (17)
+#define KEY_LEFT  (18)
+#define KEY_RIGHT (19)
+
+
 #define GAME_DPAD_MASK      \
 	(SCREEN_DPAD_UP_GAME_BUTTON   | \
 	 SCREEN_DPAD_DOWN_GAME_BUTTON | \
@@ -247,10 +269,15 @@ int SDL_SYS_JoystickOpen(SDL_Joystick *joystick)
  */
 void SDL_SYS_JoystickUpdate(SDL_Joystick *joystick)
 {
-	GameController_t *controller = &gGameController[joystick->index];
+	GameController_t *controller;
 	int               sdlState = SDL_PRESSED;
 	int               i;
 	int               tmp[32];
+
+	if (joystick == NULL)
+		return;
+
+	controller = &gGameController[joystick->index];
 
 	screen_get_device_property_iv(controller->handle, SCREEN_PROPERTY_BUTTONS, &controller->buttons);
 
@@ -267,19 +294,19 @@ void SDL_SYS_JoystickUpdate(SDL_Joystick *joystick)
     {
     	if (controller->buttons & SCREEN_DPAD_UP_GAME_BUTTON)
     	{
-    		tmp[0] = SCREEN_DPAD_UP_GAME_BUTTON;
+    		tmp[0] = KEY_UP;
     	}
     	if (controller->buttons & SCREEN_DPAD_DOWN_GAME_BUTTON)
     	{
-    		tmp[1] = SCREEN_DPAD_DOWN_GAME_BUTTON;
+    		tmp[1] = KEY_DOWN;
     	}
     	if (controller->buttons & SCREEN_DPAD_RIGHT_GAME_BUTTON)
     	{
-    		tmp[2] = SCREEN_DPAD_RIGHT_GAME_BUTTON;
+    		tmp[2] = KEY_RIGHT;
     	}
     	if (controller->buttons & SCREEN_DPAD_LEFT_GAME_BUTTON)
     	{
-    		tmp[3] = SCREEN_DPAD_LEFT_GAME_BUTTON;
+    		tmp[3] = KEY_LEFT;
     	}
     }
 
@@ -291,13 +318,16 @@ void SDL_SYS_JoystickUpdate(SDL_Joystick *joystick)
 			if (tmp[i])
 			{
 				sdlState = SDL_PRESSED;
+				controller->dpadPressState[i] = tmp[i];
 			}
 			else
 			{
 				sdlState = SDL_RELEASED;
+				tmp[i] = controller->dpadPressState[i];
+				controller->dpadPressState[i] = 0;
+
 			}
 			SDL_PrivateJoystickButton(joystick, tmp[i], sdlState);
-			controller->dpadPressState[i] = tmp[i];
 		}
 	}
 
@@ -307,67 +337,67 @@ void SDL_SYS_JoystickUpdate(SDL_Joystick *joystick)
     {
     	if (controller->buttons & SCREEN_A_GAME_BUTTON)
     	{
-    		tmp[0] = SCREEN_A_GAME_BUTTON;
+    		tmp[0] = KEY_A;
     	}
     	if (controller->buttons & SCREEN_B_GAME_BUTTON)
     	{
-    		tmp[1] = SCREEN_B_GAME_BUTTON;
+    		tmp[1] = KEY_B;
     	}
     	if (controller->buttons & SCREEN_C_GAME_BUTTON)
     	{
-    		tmp[2] = SCREEN_C_GAME_BUTTON;
+    		tmp[2] = KEY_C;
     	}
     	if (controller->buttons & SCREEN_X_GAME_BUTTON)
     	{
-    		tmp[3] = SCREEN_X_GAME_BUTTON;
+    		tmp[3] = KEY_X;
     	}
     	if (controller->buttons & SCREEN_Y_GAME_BUTTON)
     	{
-    		tmp[4] = SCREEN_Y_GAME_BUTTON;
+    		tmp[4] = KEY_Y;
     	}
     	if (controller->buttons & SCREEN_Z_GAME_BUTTON)
     	{
-    		tmp[5] = SCREEN_Z_GAME_BUTTON;
+    		tmp[5] = KEY_Z;
     	}
     	if (controller->buttons & SCREEN_L1_GAME_BUTTON )
     	{
-    		tmp[6] = SCREEN_L1_GAME_BUTTON;
+    		tmp[6] = KEY_L1;
     	}
     	if (controller->buttons & SCREEN_L2_GAME_BUTTON )
     	{
-    		tmp[7] = SCREEN_L2_GAME_BUTTON;
+    		tmp[7] = KEY_L2;
     	}
     	if (controller->buttons & SCREEN_L3_GAME_BUTTON )
     	{
-    		tmp[8] = SCREEN_L3_GAME_BUTTON;
+    		tmp[8] = KEY_L3;
     	}
     	if (controller->buttons & SCREEN_R1_GAME_BUTTON )
     	{
-    		tmp[9] = SCREEN_R1_GAME_BUTTON;
+    		tmp[9] = KEY_R1;
     	}
     	if (controller->buttons & SCREEN_R2_GAME_BUTTON )
     	{
-    		tmp[10] = SCREEN_R2_GAME_BUTTON;
+    		tmp[10] = KEY_R2;
     	}
     	if (controller->buttons & SCREEN_R3_GAME_BUTTON )
     	{
-    		tmp[11] = SCREEN_R3_GAME_BUTTON;
+    		tmp[11] = KEY_R3;
     	}
     	if (controller->buttons & SCREEN_MENU1_GAME_BUTTON)
     	{
-    		tmp[12] = SCREEN_MENU1_GAME_BUTTON;
+    		tmp[12] = KEY_MENU1;
     	}
     	if (controller->buttons & SCREEN_MENU2_GAME_BUTTON )
     	{
-    		tmp[13] = SCREEN_MENU2_GAME_BUTTON ;
+    		tmp[13] = KEY_MENU2 ;
     	}
     	if (controller->buttons & SCREEN_MENU3_GAME_BUTTON )
     	{
-    		tmp[14] = SCREEN_MENU3_GAME_BUTTON ;
+    		tmp[14] = KEY_MENU3 ;
     	}
     	if (controller->buttons & SCREEN_MENU4_GAME_BUTTON )
     	{
-    		tmp[15] = SCREEN_MENU4_GAME_BUTTON ;
+    		tmp[15] = KEY_MENU4 ;
     	}
     }
 

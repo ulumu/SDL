@@ -182,11 +182,10 @@ static SDL_AudioDevice* NTO_CreateAudioDevice(int devindex)
     SDL_AudioDevice *this;
 
     /* Initialize all variables that we clean on shutdown */
-    this = (SDL_AudioDevice *)SDL_malloc(sizeof(SDL_AudioDevice));
+    this = (SDL_AudioDevice *)SDL_calloc(1, sizeof(SDL_AudioDevice));
     if (this)
     {
-        SDL_memset(this, 0, sizeof(SDL_AudioDevice));
-        this->hidden = (struct SDL_PrivateAudioData *)SDL_malloc(sizeof(struct SDL_PrivateAudioData));
+        this->hidden = (struct SDL_PrivateAudioData *)SDL_calloc(1, sizeof(struct SDL_PrivateAudioData));
     }
     if ((this == NULL) || (this->hidden == NULL))
     {
@@ -197,7 +196,6 @@ static SDL_AudioDevice* NTO_CreateAudioDevice(int devindex)
 	}
         return (0);
     }
-    SDL_memset(this->hidden, 0, sizeof(struct SDL_PrivateAudioData));
     audio_handle = NULL;
 
     /* Set the function pointers */

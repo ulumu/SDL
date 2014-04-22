@@ -24,7 +24,7 @@ extern int PLAYBOOK_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *col
 extern void PLAYBOOK_VideoQuit(_THIS);
 
 /* etc. */
-extern int PLAYBOOK_SetupStretch(_THIS, screen_window_t screenWindow, int width, int height);
+extern int PLAYBOOK_SetupStretch(_THIS, screen_window_t screenWindow, int width, int height, Uint32 flags);
 extern void PLAYBOOK_UpdateRects(_THIS, int numrects, SDL_Rect *rects);
 
 #endif /* SDL_PLAYBOOKVIDEO_C_H_ */

@@ -165,7 +165,7 @@ void SDL_ThreadedTimerCheck(void)
 static SDL_TimerID SDL_AddTimerInternal(Uint32 interval, SDL_NewTimerCallback callback, void *param)
 {
 	SDL_TimerID t;
-	t = (SDL_TimerID) SDL_malloc(sizeof(struct _SDL_TimerID));
+	t = (SDL_TimerID) SDL_calloc(1, sizeof(struct _SDL_TimerID));
 	if ( t ) {
 		t->interval = ROUND_RESOLUTION(interval);
 		t->cb = callback;

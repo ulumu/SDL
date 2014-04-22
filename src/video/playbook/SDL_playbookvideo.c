@@ -97,9 +97,8 @@ static SDL_VideoDevice *PLAYBOOK_CreateDevice(int devindex)
 	SDL_VideoDevice *device;
 
 	/* Initialize all variables that we clean on shutdown */
-	device = (SDL_VideoDevice *)SDL_malloc(sizeof(SDL_VideoDevice) + sizeof(struct SDL_PrivateVideoData));
+	device = (SDL_VideoDevice *)SDL_calloc(1, sizeof(SDL_VideoDevice) + sizeof(struct SDL_PrivateVideoData));
 	if ( device ) {
-		SDL_memset(device, 0, (sizeof *device));
 		device->hidden = (struct SDL_PrivateVideoData *)(device+1);
 	} else {
 		SDL_OutOfMemory();
@@ -236,7 +235,7 @@ int PLAYBOOK_VideoInit(_THIS, SDL_PixelFormat *vformat)
 		return -1;
 	}
 
-	displays = SDL_malloc(displayCount * sizeof(screen_display_t));
+	displays = SDL_calloc(1, displayCount * sizeof(screen_display_t));
 	if (!displays) {
 		SDL_SetError("Cannot get current display: %s", strerror(errno));
 		screen_stop_events(_priv->screenContext);
@@ -480,7 +479,7 @@ int PLAYBOOK_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	_priv->eglInfo.eglSurface = 0;
 
 	for ( i=0; i<SDL_NUMMODES; ++i ) {
-		_priv->SDL_modelist[i] = SDL_malloc(sizeof(SDL_Rect));
+		_priv->SDL_modelist[i] = SDL_calloc(1, sizeof(SDL_Rect));
 		_priv->SDL_modelist[i]->x = _priv->SDL_modelist[i]->y = 0;
 	}
 
@@ -529,6 +528,7 @@ screen_window_t PLAYBOOK_CreateWindow(_THIS, SDL_Surface *current,
 			SDL_free(current->hwdata);
 		if (_priv->tcoControlsDir) {
 			tco_shutdown(_priv->emu_context);
+			SDL_free(_priv->tcoControlsDir);
 		}
 		int zorder = 0, setzorder = -1;
 		do {
@@ -579,7 +579,7 @@ screen_window_t PLAYBOOK_CreateWindow(_THIS, SDL_Surface *current,
 	return screenWindow;
 }
 
-int PLAYBOOK_SetupStretch(_THIS, screen_window_t screenWindow, int width, int height)
+int PLAYBOOK_SetupStretch(_THIS, screen_window_t screenWindow, int width, int height, Uint32 flags)
 {
 	int hwResolution[2];
 	int rc;
@@ -594,16 +594,25 @@ int PLAYBOOK_SetupStretch(_THIS, screen_window_t screenWindow, int width, int he
 		}
 	}
 
-	char *stretch_mode = getenv("STRETCH_MODE");
-	if (stretch_mode == NULL) {
-		stretch_mode = "aspect";
-	}
+//	char *stretch_mode = getenv("STRETCH_MODE");
+//	if (stretch_mode == NULL) {
+//		stretch_mode = "aspect";
+//	}
 
 	int sizeOfWindow[2];
-	if (strcmp(stretch_mode, "fill") == 0) {
+//	if (strcmp(stretch_mode, "fill") == 0) {
+	if (flags & SDL_FULLSCREEN) {
 		sizeOfWindow[0] = hwResolution[0];
 		sizeOfWindow[1] = hwResolution[1];
-	} else if (strcmp(stretch_mode, "noscale") == 0) {
+
+		int position[2] = {0, 0};
+		rc = screen_set_window_property_iv(screenWindow, SCREEN_PROPERTY_POSITION, position);
+		if (rc) {
+			SDL_SetError("Cannot position window: %s", strerror(errno));
+			return -1;
+		}
+//	} else if (strcmp(stretch_mode, "noscale") == 0) {
+	} else if ( (flags & SDL_RESIZABLE) == 0 ) {
 		sizeOfWindow[0] = width;
 		sizeOfWindow[1] = height;
 
@@ -672,7 +681,7 @@ SDL_Surface *PLAYBOOK_SetVideoMode(_THIS, SDL_Surface *current,
 	int rc;
 	int format = 0;
 
-	rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height);
+	rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height, flags);
 	if (rc) {
 		screen_destroy_window(screenWindow);
 		return NULL;
@@ -757,7 +766,7 @@ SDL_Surface *PLAYBOOK_SetVideoMode(_THIS, SDL_Surface *current,
 	_priv->h = height;
 	_priv->angle = angle;
 
-	current->hwdata = SDL_malloc(sizeof(struct private_hwdata));
+	current->hwdata = SDL_calloc(1, sizeof(struct private_hwdata));
 	current->hwdata->pixmap = 0;
 	current->hwdata->window = screenWindow;
 	current->hwdata->front = windowBuffer[0];
@@ -823,6 +832,10 @@ void PLAYBOOK_VideoQuit(_THIS)
 	bps_shutdown();
 	if (_priv->tcoControlsDir) {
 		tco_shutdown(_priv->emu_context);
+		SDL_free(_priv->tcoControlsDir);
+	}
+	if (_priv->tcoControlsFile) {
+		SDL_free(_priv->tcoControlsFile);
 	}
 	this->screen = 0;
 }

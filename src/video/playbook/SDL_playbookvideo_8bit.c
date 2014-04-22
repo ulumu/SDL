@@ -36,8 +36,13 @@
 
 #define PLAYBOOKVID_8Bit_DRIVER_NAME "pb-8bit"
 
+// No Rotation
 static GLfloat vertices[] = {-1.0,-1.0, 1.0,-1.0, -1.0,1.0, 1.0,1.0};
 static GLfloat texCoords[] = {0.0,1.0, 1.0,1.0, 0.0,0.0, 1.0,0.0};
+
+// Rotate 90 degree
+//static const GLfloat vertices[] = {1.0,1.0, -1.0,1.0, -1.0,-1.0, 1.0,-1.0};
+//static const GLfloat texCoords[] = {1.0,1.0, 1.0,0.0, 0.0,0.0, 0.0,1.0};
 
 	const char *vs =
 			"attribute vec2 a_position;\n"
@@ -48,7 +53,7 @@ static GLfloat texCoords[] = {0.0,1.0, 1.0,1.0, 0.0,0.0, 1.0,0.0};
 			"    gl_Position = vec4(a_position, 0.0, 1.0);\n"
 			"    v_texcoord = a_texcoord;\n"
 			"}\n";
-
+#if 0
 	const char *fs =
 			"uniform lowp sampler2D u_sampler;\n"
 			"uniform lowp sampler2D u_palette;\n" // TODO: Palette should be 1D.
@@ -59,6 +64,217 @@ static GLfloat texCoords[] = {0.0,1.0, 1.0,1.0, 0.0,0.0, 1.0,0.0};
 			"    /*gl_FragColor = texture2D(u_palette, vec2(p,0.0));\n*/"
 			"    gl_FragColor = texture2D(u_sampler, v_texcoord);\n"
 			"}\n";
+#endif
+
+#if 1
+	const char *fs =
+	    "uniform sampler2D u_sampler; // Texture0\n"
+	    "uniform sampler2D u_palette; // Texture1\n"
+		"uniform vec2  u_resolution;\n"
+		"uniform float u_xoffset;\n"
+	    "varying vec2 v_texcoord;\n"
+	    "\n"
+	    "#define FxaaInt2 ivec2\n"
+	    "#define FxaaFloat2 vec2\n"
+	    "#define FxaaTexLod0(t, p) texture2D(t, p)\n"
+        "#define FxaaTexOff(t, p, o, r) texture2D(t, p + (o * r))\n"
+		"#define FXAA_REDUCE_MIN   (1.0/128.0)\n"
+		"#define FXAA_REDUCE_MUL   (1.0/16.0)\n"
+		"#define FXAA_SPAN_MAX     2.0\n"
+	    "\n"
+		"void main() \n"
+		"{ \n"
+		"    vec3 c;\n"
+		"    lowp float lum;"
+		"    vec2 rcpFrame = 1.0/u_resolution;\n"
+		"    if(v_texcoord.x > u_xoffset)\n"
+		"       gl_FragColor = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord).r,0.0));\n"
+		"    else if(v_texcoord.x > (u_xoffset-0.005))\n"
+		"       gl_FragColor = vec4(0.7,0.7,0.7,1.0);\n"
+		"	 else\n"
+		"    {\n"
+	    "/*---------------------------------------------------------*/\n"
+	    "/*---------------------------------------------------------*/\n"
+	    "    vec3 rgbNW = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + (FxaaFloat2(-1.0,-1.0) * rcpFrame.xy)).r,0.0)).xyz;\n"
+	    "    vec3 rgbNE = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + (FxaaFloat2( 1.0,-1.0) * rcpFrame.xy)).r,0.0)).xyz;\n"
+	    "    vec3 rgbSW = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + (FxaaFloat2(-1.0, 1.0) * rcpFrame.xy)).r,0.0)).xyz;\n"
+	    "    vec3 rgbSE = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + (FxaaFloat2( 1.0, 1.0) * rcpFrame.xy)).r,0.0)).xyz;\n"
+	    "    vec3 rgbM  = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord).r,0.0)).xyz;\n"
+	    "/*---------------------------------------------------------*/\n"
+	    "    vec3 luma = vec3(0.299, 0.587, 0.114);\n"
+	    "    float lumaNW = dot(rgbNW, luma);\n"
+	    "    float lumaNE = dot(rgbNE, luma);\n"
+	    "    float lumaSW = dot(rgbSW, luma);\n"
+	    "    float lumaSE = dot(rgbSE, luma);\n"
+	    "    float lumaM  = dot(rgbM,  luma);\n"
+	    "/*---------------------------------------------------------*/\n"
+	    "    float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));\n"
+	    "    float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));\n"
+	    "/*---------------------------------------------------------*/\n"
+	    "    vec2 dir; \n"
+	    "    dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));\n"
+	    "    dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));\n"
+	    "/*---------------------------------------------------------*/\n"
+	    "    float dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);\n"
+	    "    float rcpDirMin = 1.0/(min(abs(dir.x), abs(dir.y)) + dirReduce);\n"
+	    "    dir = min(FxaaFloat2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX), \n"
+	    "          max(FxaaFloat2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX), \n"
+	    "          dir * rcpDirMin)) * rcpFrame.xy;\n"
+	    "/*--------------------------------------------------------*/\n"
+	    "    vec3 rgbA = (1.0/2.0) * (\n"
+	    "        texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord.xy + dir * (1.0/3.0 - 0.5)).r,0.0)).xyz +\n"
+	    "        texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord.xy + dir * (2.0/3.0 - 0.5)).r,0.0)).xyz);\n"
+	    "    vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (\n"
+	    "        texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord.xy + dir * (0.0/3.0 - 0.5)).r,0.0)).xyz +\n"
+	    "        texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord.xy + dir * (3.0/3.0 - 0.5)).r,0.0)).xyz);\n"
+	    "    float lumaB = dot(rgbB, luma);\n"
+	    "    if((lumaB < lumaMin) || (lumaB > lumaMax))\n"
+		"      c = rgbA;\n"
+		"    else\n"
+	    "      c = rgbB;\n"
+		"    gl_FragColor = vec4(c,1.0);\n"
+	    "    }\n"
+		"}\n";
+
+#endif
+
+#if 0
+	const char *fs =
+	"#ifdef GL_ES   \n"
+	"   precision mediump float;\n"
+	"#endif\n"
+	"    #define FxaaBool bool\n"
+	"    #define FxaaDiscard discard\n"
+	"    #define FxaaFloat float\n"
+	"    #define FxaaFloat2 vec2\n"
+	"    #define FxaaFloat3 vec3\n"
+	"    #define FxaaFloat4 vec4\n"
+	"    #define FxaaHalf float\n"
+	"    #define FxaaHalf2 vec2\n"
+	"    #define FxaaHalf3 vec3\n"
+	"    #define FxaaHalf4 vec4\n"
+	"    #define FxaaInt2 ivec2\n"
+	"    #define FxaaSat(x) clamp(x, 0.0, 1.0)\n"
+	"    #define FxaaTex sampler2D\n"
+	"    // The console setting has a different mapping than the quality setting.\n"
+	"    // Other platforms can use other values.\n"
+	"    //   0.125 leaves less aliasing, but is softer (default!!!)\n"
+	"    //   0.25 leaves more aliasing, and is sharper\n"
+	"    #define fxaaConsoleEdgeThreshold 0.125\n"
+	"    // For all other platforms can be a non-power of two.\n"
+	"    //   8.0 is sharper (default!!!)\n"
+	"    //   4.0 is softer\n"
+	"    //   2.0 is really soft (good only for vector graphics inputs)\n"
+	"    #define fxaaConsoleEdgeSharpness 8.0\n"
+	"    // Trims the algorithm from processing darks.\n"
+	"    // The console setting has a different mapping than the quality setting.\n"
+	"    //   0.06 - faster but more aliasing in darks\n"
+	"    //   0.05 - default\n"
+	"    //   0.04 - slower and less aliasing in darks\n"
+	"    //   start at zero and increase until aliasing is a problem.\n"
+	"    #define fxaaConsoleEdgeThresholdMin 0.08\n"
+	"uniform sampler2D u_sampler; // Texture0 Luma plane\n"
+	"uniform sampler2D u_palette; // Texture1 Palette color\n"
+	"uniform vec2  u_resolution;\n"
+	"uniform float u_xoffset;\n"
+	"uniform float m_Subpix;\n"
+	"uniform float m_EdgeThreshold;\n"
+	"uniform float m_EdgeThresholdMin;\n"
+	"varying vec2  v_texcoord;\n"
+	"\n"
+	"void main() \n"
+	"{ \n"
+	"    FxaaFloat2 rcpFrame = 1.0/u_resolution;\n"
+	"    // This effects sub-pixel AA quality and inversely sharpness.\n"
+	"    //   Where N ranges between,\n"
+	"    //     N = 0.50 (default)\n"
+	"    //     N = 0.33 (sharper)\n"
+	"    // {x___} = -N/screenWidthInPixels  \n"
+	"    // {_y__} = -N/screenHeightInPixels\n"
+	"    // {__z_} =  N/screenWidthInPixels  \n"
+	"    // {___w} =  N/screenHeightInPixels \n"
+	"    FxaaFloat4 fxaaConsoleRcpFrameOpt = 0.50/vec4(-u_resolution, u_resolution);\n"
+	"    // {x___} = -2.0/screenWidthInPixels  \n"
+	"    // {_y__} = -2.0/screenHeightInPixels\n"
+	"    // {__z_} =  2.0/screenWidthInPixels  \n"
+	"    // {___w} =  2.0/screenHeightInPixels \n"
+	"    FxaaFloat4 fxaaConsoleRcpFrameOpt2 = 2.0/vec4(-u_resolution, u_resolution);\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"    FxaaFloat4 rgbyM  = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord).r,0.0));\n"
+	"    if(v_texcoord.x > u_xoffset)\n"
+	"       gl_FragColor = rgbyM;\n"
+	"    else if(v_texcoord.x > (u_xoffset-0.005))\n"
+	"       gl_FragColor = vec4(0.7,0.7,0.7,1.0);\n"
+	"	 else\n"
+	"    {\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"    FxaaFloat4 rgbyNw = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + (FxaaFloat2(-1.0,-1.0) * rcpFrame.xy)).r,0.0));\n"
+	"    FxaaFloat4 rgbySw = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + (FxaaFloat2(-1.0, 1.0) * rcpFrame.xy)).r,0.0));\n"
+	"    FxaaFloat4 rgbyNe = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + (FxaaFloat2( 1.0,-1.0) * rcpFrame.xy)).r,0.0));\n"
+	"    FxaaFloat4 rgbySe = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + (FxaaFloat2( 1.0, 1.0) * rcpFrame.xy)).r,0.0));\n"
+    "    FxaaFloat4 luma   = vec4(0.299, 0.587, 0.114, 1.0);\n"
+	"    FxaaFloat lumaNw = dot(rgbyNw,luma);\n"
+	"    FxaaFloat lumaSw = dot(rgbySw,luma);\n"
+	"    FxaaFloat lumaNe = dot(rgbyNe,luma);\n"
+	"    FxaaFloat lumaSe = dot(rgbySe,luma);\n"
+	"    FxaaFloat lumaM  = dot(rgbyM,luma);\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"    //FxaaFloat4 rgbyM = texture2D(u_palette, vec2(lumaM,0.0));\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"    FxaaFloat lumaMaxNwSw = max(lumaNw, lumaSw);\n"
+	"    lumaNe += 1.0/384.0;\n"
+	"    FxaaFloat lumaMinNwSw = min(lumaNw, lumaSw);\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"    FxaaFloat lumaMaxNeSe = max(lumaNe, lumaSe);\n"
+	"    FxaaFloat lumaMinNeSe = min(lumaNe, lumaSe);\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"    FxaaFloat lumaMax = max(lumaMaxNeSe, lumaMaxNwSw);\n"
+	"    FxaaFloat lumaMin = min(lumaMinNeSe, lumaMinNwSw);\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"    FxaaFloat lumaMaxScaled = lumaMax * fxaaConsoleEdgeThreshold;\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"    FxaaFloat lumaMinM = min(lumaMin, lumaM);\n"
+	"    FxaaFloat lumaMaxScaledClamped = max(fxaaConsoleEdgeThresholdMin, lumaMaxScaled);\n"
+	"    FxaaFloat lumaMaxM = max(lumaMax, lumaM);\n"
+	"    FxaaFloat dirSwMinusNe = lumaSw - lumaNe;\n"
+	"    FxaaFloat lumaMaxSubMinM = lumaMaxM - lumaMinM;\n"
+	"    FxaaFloat dirSeMinusNw = lumaSe - lumaNw;\n"
+	"    if(lumaMaxSubMinM < lumaMaxScaledClamped) gl_FragColor = rgbyM;\n"
+	"    else \n"
+	"      {\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"        FxaaFloat2 dir;\n"
+	"        dir.x = dirSwMinusNe + dirSeMinusNw;\n"
+	"        dir.y = dirSwMinusNe - dirSeMinusNw;\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"        FxaaFloat2 dir1 = normalize(dir.xy);\n"
+	"        //FxaaFloat  lumaN1 = texture2D(u_sampler, v_texcoord - dir1 * fxaaConsoleRcpFrameOpt.zw).r;\n"
+	"        //FxaaFloat  lumaP1 = texture2D(u_sampler, v_texcoord + dir1 * fxaaConsoleRcpFrameOpt.zw).r;\n"
+	"        FxaaFloat4 rgbyN1 = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord - dir1 * fxaaConsoleRcpFrameOpt.zw).r,0.0));\n"
+	"        FxaaFloat4 rgbyP1 = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + dir1 * fxaaConsoleRcpFrameOpt.zw).r,0.0));\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"        FxaaFloat dirAbsMinTimesC = min(abs(dir1.x), abs(dir1.y)) * fxaaConsoleEdgeSharpness;\n"
+	"        FxaaFloat2 dir2 = clamp(dir1.xy / dirAbsMinTimesC, -2.0, 2.0);\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"        //FxaaFloat  lumaN2 = texture2D(u_sampler, v_texcoord - dir2 * fxaaConsoleRcpFrameOpt2.zw).r;\n"
+	"        //FxaaFloat  lumaP2 = texture2D(u_sampler, v_texcoord + dir2 * fxaaConsoleRcpFrameOpt2.zw).r;\n"
+	"        FxaaFloat4 rgbyN2 = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord - dir2 * fxaaConsoleRcpFrameOpt2.zw).r,0.0));\n"
+	"        FxaaFloat4 rgbyP2 = texture2D(u_palette, vec2(texture2D(u_sampler, v_texcoord + dir2 * fxaaConsoleRcpFrameOpt2.zw).r,0.0));\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"        //FxaaFloat  lumaA = lumaN1 + lumaP1;\n"
+	"        FxaaFloat4 rgbyA = rgbyN1 + rgbyP1;\n"
+	"        //FxaaFloat  lumaB = ((lumaN2 + lumaP2) * 0.25) + (lumaA * 0.25);\n"
+	"        FxaaFloat4 rgbyB = ((rgbyN2 + rgbyP2) * 0.25) + (rgbyA * 0.25);\n"
+	"/*--------------------------------------------------------------------------*/\n"
+	"        FxaaFloat  lumaB  = dot(rgbyB,luma);\n"
+	"        FxaaBool  twoTap = (lumaB < lumaMin) || (lumaB > lumaMax);\n"
+	"        if(twoTap) rgbyB.xyz = rgbyA.xyz;\n"
+	"        gl_FragColor = rgbyB; \n"
+	"      }\n"
+	"    }\n"
+	"}\n"
+	"/*==========================================================================*/\n";
+#endif
 
 
 static void egl_perror(const char *msg)
@@ -112,9 +328,8 @@ SDL_VideoDevice *PLAYBOOK_8Bit_CreateDevice(int devindex)
 	SDL_VideoDevice *device;
 
 	/* Initialize all variables that we clean on shutdown */
-	device = (SDL_VideoDevice *)SDL_malloc(sizeof(SDL_VideoDevice) + sizeof(struct SDL_PrivateVideoData));
+	device = (SDL_VideoDevice *)SDL_calloc(1, sizeof(SDL_VideoDevice) + sizeof(struct SDL_PrivateVideoData));
 	if ( device ) {
-		SDL_memset(device, 0, (sizeof *device));
 		device->hidden = (struct SDL_PrivateVideoData *)(device+1);
 	} else {
 		SDL_OutOfMemory();
@@ -222,6 +437,9 @@ static int initializeGL(_THIS, int width, int height)
 	glUseProgram(id);
 	glUniform1i(glGetUniformLocation(id, "u_sampler"), 0); // screen texture is TEXTURE0
 	glUniform1i(glGetUniformLocation(id, "u_palette"), 1); // palette texture is TEXTURE1
+	glUniform2f(glGetUniformLocation(id, "u_resolution"), (float)width, (float)height);
+	glUniform1f(glGetUniformLocation(id, "u_xoffset"),  0.5);              // use 0.5 for mid point split effect comparision
+
 	_priv->glInfo.positionAttrib = glGetAttribLocation(id, "a_position");
 	_priv->glInfo.texcoordAttrib = glGetAttribLocation(id, "a_texcoord");
 
@@ -249,7 +467,7 @@ static int initializeGL(_THIS, int width, int height)
 
 	_priv->glInfo.screen[0] = textures[0];
 	_priv->glInfo.screen[1] = textures[1];
-	_priv->glInfo.palette = textures[2];
+	_priv->glInfo.palette   = textures[2];
 
 	return 1; // Success
 error4:
@@ -313,6 +531,8 @@ SDL_Surface *PLAYBOOK_8Bit_SetVideoMode(_THIS, SDL_Surface *current,
 
 	if (!_priv->screenWindow) {
 
+		SLOG("First time create Video EGL window");
+
 		_priv->eglInfo.eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 		if (_priv->eglInfo.eglDisplay == EGL_NO_DISPLAY) {
 			egl_perror("eglGetDisplay");
@@ -352,7 +572,7 @@ SDL_Surface *PLAYBOOK_8Bit_SetVideoMode(_THIS, SDL_Surface *current,
 			goto error3;
 		}
 
-		rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height);
+		rc = PLAYBOOK_SetupStretch(this, screenWindow, width, height, flags);
 		if (rc) {
 			goto error4;
 		}
@@ -402,6 +622,8 @@ SDL_Surface *PLAYBOOK_8Bit_SetVideoMode(_THIS, SDL_Surface *current,
 
 		_priv->screenWindow = screenWindow;
 	} else {
+		SLOG("Set Video Mode again, create new Texture");
+
 		glDeleteTextures(2, _priv->glInfo.screen);
 
 		glActiveTexture(GL_TEXTURE0);
@@ -431,6 +653,7 @@ SDL_Surface *PLAYBOOK_8Bit_SetVideoMode(_THIS, SDL_Surface *current,
 	current->pixels = SDL_calloc(width * height, 1);
 //	this->physpal = AllocatePalette(256);
 //	current->format->palette = this->physpal;
+
 	_priv->surface = current;
 	_priv->w       = width;
 	_priv->h       = height;
@@ -476,10 +699,29 @@ static void printFPS()
 
 void PLAYBOOK_8Bit_UpdateRects(_THIS, int numrects, SDL_Rect *rects)
 {
+	float w_recipicol;
+	float x_offset;
+
 	if (!this || !_priv || !_priv->surface)
 		return;
 
-	glClear(GL_COLOR_BUFFER_BIT);
+    // Shifting the image to middle of the screen based on the rect width
+	w_recipicol = 1.0f / (float)_priv->surface->w;
+	x_offset    = (float)(_priv->surface->w - rects->w) * w_recipicol;
+
+	// (-1,-1)
+	vertices[0] = -1.0f + x_offset;
+	// (1,-1)
+	vertices[2] =  1.0f + x_offset;
+	// (-1,1)
+	vertices[4] = -1.0f + x_offset;
+	// (1,1)
+	vertices[6] =  1.0f + x_offset;
+
+//	glUniform1f(glGetUniformLocation(_priv->glInfo.shader, "u_xoffset"),  rects->w * 0.5f * w_recipicol);
+	glUniform1f(glGetUniformLocation(_priv->glInfo.shader, "u_xoffset"),  1.1);
+
+	glClear(GL_COLOR_BUFFER_BIT );
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, _priv->glInfo.screen[_priv->glInfo.writableScreen]);
 	_priv->glInfo.writableScreen = !_priv->glInfo.writableScreen;
@@ -515,6 +757,8 @@ int PLAYBOOK_8Bit_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *color
 		SLOG("ERROR!!! ncolors[%d] is more than 256!!", ncolors);
 		return 0;
 	}
+	else
+		SLOG("ncolors:%d, firstcolor:%d", ncolors, firstcolor);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, _priv->glInfo.palette);
@@ -522,7 +766,7 @@ int PLAYBOOK_8Bit_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *color
 	static unsigned char c[256*4] = {0};
 	for (i=0; i<ncolors; i++) {
 		int j=i;//+firstcolor;
-		c[4*j] = colors[i].r;
+		c[4*j]   = colors[i].r;
 		c[4*j+1] = colors[i].g;
 		c[4*j+2] = colors[i].b;
 		c[4*j+3] = 0xff;

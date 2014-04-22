@@ -223,7 +223,8 @@ void locateTCOControlFile(_THIS)
     FILE *fd = NULL;
 
     // Use SDL multi-mouse controls as default
-    _priv->tcoControlsDir = 0;
+    _priv->tcoControlsDir  = 0;
+    _priv->tcoControlsFile = 0;
 
 	// HACK: Handle Q10 device, hide overlay button if Q10 device is detected
     SLOG("Detected screen resolution: %d x %d", _priv->SDL_modelist[0]->w, _priv->SDL_modelist[0]->h);
@@ -256,8 +257,8 @@ void locateTCOControlFile(_THIS)
 
     if (fd)
     {
-        _priv->tcoControlsDir  = SDL_malloc(strlen(fullPath) - strlen(filename) + 1);
-        _priv->tcoControlsFile = SDL_malloc(strlen(filename) + 1);
+        _priv->tcoControlsDir  = SDL_calloc(1, strlen(fullPath) - strlen(filename) + 1);
+        _priv->tcoControlsFile = SDL_calloc(1, strlen(filename) + 1);
         if (_priv->tcoControlsDir)
         {
 			strncpy(_priv->tcoControlsDir, fullPath, strlen(fullPath) - strlen(filename));
@@ -275,7 +276,7 @@ void locateTCOControlFile(_THIS)
 
 void initializeOverlay(_THIS, screen_window_t screenWindow)
 {
-	int loaded = 0;
+	int bLoaded = 0;
 	const char *filename = _priv->tcoControlsFile;
 	struct tco_callbacks callbacks = {
 		handleKey, handleDPad, handleTouch, handleMouseButton, handleTap, handleTouchScreen
@@ -293,15 +294,12 @@ void initializeOverlay(_THIS, screen_window_t screenWindow)
 	char cwd[256];
 	if ((getcwd(cwd, 256) != NULL) && (chdir(_priv->tcoControlsDir) == 0)) {
 		if (tco_loadcontrols(_priv->emu_context, filename) == TCO_SUCCESS) {
-			loaded = 1;
+			bLoaded = 1;
 		}
 		chdir(cwd);
 	}
 
-	// Clean up and set flags
-	SDL_free(_priv->tcoControlsFile);
-	_priv->tcoControlsFile = NULL;
-	if (loaded) {
+	if (bLoaded) {
 		// hideTco is set within SDL_SYS_JoystickInit
 		// if a joystick is detected, then there is no need to display the overlay Label
 		if (_priv->hideTco == 0)

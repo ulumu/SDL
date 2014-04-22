@@ -123,7 +123,7 @@ SDL_Cursor * SDL_CreateCursor (Uint8 *data, Uint8 *mask,
 	}
 
 	/* Allocate memory for the cursor */
-	cursor = (SDL_Cursor *)SDL_malloc(sizeof *cursor);
+	cursor = (SDL_Cursor *)SDL_calloc(1, sizeof *cursor);
 	if ( cursor == NULL ) {
 		SDL_OutOfMemory();
 		return(NULL);
@@ -135,9 +135,9 @@ SDL_Cursor * SDL_CreateCursor (Uint8 *data, Uint8 *mask,
 	cursor->area.h = h;
 	cursor->hot_x = hot_x;
 	cursor->hot_y = hot_y;
-	cursor->data = (Uint8 *)SDL_malloc((w/8)*h*2);
+	cursor->data = (Uint8 *)SDL_calloc(1, (w/8)*h*2);
 	cursor->mask = cursor->data+((w/8)*h);
-	cursor->save[0] = (Uint8 *)SDL_malloc(savelen*2);
+	cursor->save[0] = (Uint8 *)SDL_calloc(1, savelen*2);
 	cursor->save[1] = cursor->save[0] + savelen;
 	cursor->wm_cursor = NULL;
 	if ( ! cursor->data || ! cursor->save[0] ) {

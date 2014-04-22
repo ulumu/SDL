@@ -200,7 +200,7 @@ int SDL_GetGammaRamp(Uint16 *red, Uint16 *green, Uint16 *blue)
 
 	/* Lazily allocate the gamma table */
 	if ( ! video->gamma ) {
-		video->gamma = SDL_malloc(3*256*sizeof(*video->gamma));
+		video->gamma = SDL_calloc(1, 3*256*sizeof(*video->gamma));
 		if ( ! video->gamma ) {
 			SDL_OutOfMemory();
 			return -1;

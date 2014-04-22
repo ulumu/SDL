@@ -87,11 +87,9 @@ static SDL_AudioDevice *PLAYBOOK_AUD_CreateDevice(int devindex)
     const char *envr;
 
     /* Initialize all variables that we clean on shutdown */
-    this = (SDL_AudioDevice *)SDL_malloc(sizeof(SDL_AudioDevice));
+    this = (SDL_AudioDevice *)SDL_calloc(1, sizeof(SDL_AudioDevice));
     if ( this ) {
-        SDL_memset(this, 0, (sizeof *this));
-        this->hidden = (struct SDL_PrivateAudioData *)
-                SDL_malloc((sizeof *this->hidden));
+        this->hidden = (struct SDL_PrivateAudioData *)SDL_calloc(1, (sizeof *this->hidden));
     }
 
     if ( (this == NULL) || (this->hidden == NULL) ) {
@@ -102,7 +100,6 @@ static SDL_AudioDevice *PLAYBOOK_AUD_CreateDevice(int devindex)
         return(0);
     }
 
-    SDL_memset(this->hidden, 0, (sizeof *this->hidden));
     this->hidden->write_delay = PLAYBOOK_DEFAULT_WRITEDELAY;
 
     /* Set the function pointers */
@@ -127,7 +124,7 @@ static void PLAYBOOK_AUD_WaitAudio(_THIS)
 {
     fd_set  rfds, wfds;
     int nflds;
-    int readAvailable = 1;
+    int readAvailable = 0;
     int writeAvailable = 0;
 #ifdef ACTUALLY_DO_DISK
     SDL_Delay(this->hidden->write_delay);

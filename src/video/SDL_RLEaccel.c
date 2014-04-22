@@ -1842,12 +1842,11 @@ static SDL_bool UnRLEAlpha(SDL_Surface *surface)
 	uncopy_opaque = uncopy_transl = uncopy_32;
     }
 
-    surface->pixels = SDL_malloc(surface->h * surface->pitch);
+    surface->pixels = SDL_calloc(1, surface->h * surface->pitch);
     if ( !surface->pixels ) {
         return(SDL_FALSE);
     }
     /* fill background with transparent pixels */
-    SDL_memset(surface->pixels, 0, surface->h * surface->pitch);
 
     dst = surface->pixels;
     srcbuf = (Uint8 *)(df + 1);
@@ -1906,7 +1905,7 @@ void SDL_UnRLESurface(SDL_Surface *surface, int recode)
 		unsigned alpha_flag;
 
 		/* re-create the original surface */
-		surface->pixels = SDL_malloc(surface->h * surface->pitch);
+		surface->pixels = SDL_calloc(1, surface->h * surface->pitch);
 		if ( !surface->pixels ) {
 			/* Oh crap... */
 			surface->flags |= SDL_RLEACCEL;
