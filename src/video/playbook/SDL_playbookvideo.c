@@ -817,6 +817,7 @@ void PLAYBOOK_VideoQuit(_THIS)
 {
 	if (_priv->screenWindow) {
 		if (_priv->eglInfo.eglDisplay) {
+		    eglMakeCurrent(_priv->eglInfo.eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 			eglDestroySurface(_priv->eglInfo.eglDisplay, _priv->eglInfo.eglSurface);
 			screen_destroy_window(_priv->screenWindow);
 			eglDestroyContext(_priv->eglInfo.eglDisplay, _priv->eglInfo.eglContext);
